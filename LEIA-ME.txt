@@ -1,0 +1,22 @@
+CORRETOR DE PROVAS — VERSÃO COM BACKUP E RESTAURAÇÃO
+
+Novidade:
+- Nova aba "Backup".
+- "Baixar backup completo": gera um arquivo JSON com turmas, alunos, provas,
+  gabaritos, resultados e também PDF/Word anexados às provas.
+- "Restaurar backup": recupera tudo a partir desse arquivo.
+- O arquivo recebe data e hora no nome.
+- O app mostra quando foi feito o último backup neste navegador.
+
+IMPORTANTE:
+O banco local continua com o mesmo nome (corretor_provas_completo_v1),
+portanto os dados já existentes no mesmo navegador não são apagados pela atualização.
+
+No GitHub, envie/substitua:
+- index.html
+- manifest.webmanifest
+- sw.js
+- icon-192.png
+- icon-512.png
+
+Depois, abra o aplicativo e procure a nova aba "Backup".
