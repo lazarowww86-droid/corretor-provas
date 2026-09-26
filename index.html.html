@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Leitor OMR — cartão-resposta</title>
+<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+<style>
+:root{
+  --bg:#eef3f8;--panel:#fff;--ink:#102033;--muted:#64748b;
+  --blue:#2563eb;--green:#15803d;--orange:#c2410c;--line:#dbe3ec
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:#0f172a;color:#fff;padding:18px 20px}
+header h1{margin:0 0 5px;font-size:24px} header p{margin:0;color:#cbd5e1}
+main{max-width:900px;margin:auto;padding:15px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px;box-shadow:0 4px 15px rgba(15,23,42,.05)}
+button{border:0;border-radius:11px;padding:11px 14px;font-weight:700;cursor:pointer}
+.primary{background:var(--blue);color:#fff}.secondary{background:#475569;color:#fff}.success{background:var(--green);color:#fff}
+.row{display:flex;gap:9px;flex-wrap:wrap}
+.notice,.ok,.warn{padding:12px;border-radius:11px;margin:10px 0}
+.notice{background:#eff6ff;border:1px solid #bfdbfe}.ok{background:#f0fdf4;border:1px solid #bbf7d0}.warn{background:#fff7ed;border:1px solid #fed7aa}
+.muted{color:var(--muted)}
+#video{width:100%;max-width:650px;background:#000;border-radius:12px;display:none}
+.preview{display:none;width:100%;max-width:650px;border:1px solid #cbd5e1;border-radius:12px;margin-top:10px}
+.result-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.res{border:1px solid #cbd5e1;border-radius:11px;padding:10px;text-align:center}
+.res strong{display:block;font-size:28px;margin-top:4px}
+input[type=file]{display:block;margin:10px 0}
+#printArea{display:none}
+
+/* Visualização do cartão na tela */
+.sheet-preview{max-width:640px;margin:10px auto;background:#fff;border:1px solid #cbd5e1}
+.sheet-preview svg{display:block;width:100%;height:auto}
+
+/* Botão de captura flutuante no celular */
+#capture.fab{
+  position:fixed;right:18px;bottom:92px;width:64px;height:64px;border-radius:50%;
+  display:none;align-items:center;justify-content:center;font-size:26px;padding:0;
+  z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.28);border:3px solid white
+}
+#capture.fab.show{display:flex}
+
+@media print{
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block!important}
+  @page{size:A4;margin:10mm}
+  .print-page{width:190mm;height:277mm;display:flex;align-items:center;justify-content:center}
+  .print-page svg{width:178mm;height:auto;display:block}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Leitor OMR — teste confiável</h1>
+  <p>Cartão vetorial + correção de perspectiva + leitura de caneta azul/preta.</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2>1. Imprima este cartão</h2>
+    <p>Os 4 quadrados pretos fazem parte do próprio desenho vetorial e devem sair na impressão. Antes de marcar, confirme visualmente que os quatro estão no papel.</p>
+    <button id="printBtn" class="primary">Imprimir cartão</button>
+    <div class="sheet-preview" id="screenCard"></div>
+  </section>
+
+  <section class="card">
+    <h2>2. Leia pela câmera ou por foto</h2>
+    <div id="cvStatus" class="notice">Carregando o motor de leitura...</div>
+    <div class="row">
+      <button id="openCam" class="primary">Abrir câmera</button>
+      <button id="stopCam" class="secondary" disabled>Parar câmera</button>
+    </div>
+    <video id="video" autoplay playsinline></video>
+    <button id="capture" class="success fab" disabled title="Ler cartão">✓</button>
+
+    <p><b>Ou selecione uma foto:</b></p>
+    <input id="fileInput" type="file" accept="image/*">
+    <canvas id="canvasIn" class="preview"></canvas>
+    <div id="readStatus"></div>
+  </section>
+
+  <section class="card">
+    <h2>3. Resultado</h2>
+    <div class="result-grid" id="results">
+      <div class="res">Q1<strong>-</strong></div>
+      <div class="res">Q2<strong>-</strong></div>
+      <div class="res">Q3<strong>-</strong></div>
+      <div class="res">Q4<strong>-</strong></div>
+      <div class="res">Q5<strong>-</strong></div>
+    </div>
+    <div id="scoreBox"></div>
+  </section>
+
+  <section class="card">
+    <h2>Diagnóstico visual</h2>
+    <p class="muted">Esta imagem mostra a folha endireitada e exatamente onde o leitor procurou as bolhas.</p>
+    <canvas id="canvasWarp" class="preview"></canvas>
+  </section>
+</main>
+
+<div id="printArea"><div class="print-page" id="printCard"></div></div>
+
+<script>
+const $=id=>document.getElementById(id);
+let stream=null,cvReady=false;
+
+/* =======================
+   GEOMETRIA CANÔNICA
+   ======================= */
+const CARD_W=1000, CARD_H=1400;
+const MARKERS=[
+  {x:55,y:55,w:80,h:80},
+  {x:865,y:55,w:80,h:80},
+  {x:55,y:1265,w:80,h:80},
+  {x:865,y:1265,w:80,h:80}
+];
+const MARKER_CENTERS=[[95,95],[905,95],[95,1305],[905,1305]];
+const BUBBLE_X=[335,500,665,830];
+const BUBBLE_Y=[590,735,880,1025,1170];
+const LETTERS=["A","B","C","D"];
+const TEST_KEY=["B","C","A","C","B"];
+
+function cardSVG(){
+  const rows=BUBBLE_Y.map((y,qi)=>{
+    const opts=BUBBLE_X.map((x,j)=>`
+      <text x="${x}" y="${y-47}" text-anchor="middle" font-size="30" font-weight="700" font-family="Arial">${LETTERS[j]}</text>
+      <circle cx="${x}" cy="${y}" r="32" fill="white" stroke="black" stroke-width="5"/>`
+    ).join("");
+    return `<text x="185" y="${y+10}" text-anchor="middle" font-size="34" font-weight="700" font-family="Arial">${String(qi+1).padStart(2,"0")}</text>${opts}`;
+  }).join("");
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CARD_W} ${CARD_H}" aria-label="Cartão-resposta OMR">
+    <rect x="25" y="25" width="950" height="1350" fill="white" stroke="black" stroke-width="4"/>
+    ${MARKERS.map(m=>`<rect x="${m.x}" y="${m.y}" width="${m.w}" height="${m.h}" fill="black"/>`).join("")}
+    <text x="180" y="180" font-size="44" font-weight="700" font-family="Arial">CARTÃO-RESPOSTA — TESTE</text>
+    <text x="180" y="235" font-size="25" font-family="Arial">Aluno: __________________________________________</text>
+    <text x="180" y="285" font-size="22" font-family="Arial">Preencha totalmente UMA bolha por questão.</text>
+    <line x1="150" y1="360" x2="850" y2="360" stroke="black" stroke-width="4"/>
+    ${rows}
+    <text x="180" y="1240" font-size="19" font-family="Arial">Use caneta azul escura ou preta.</text>
+  </svg>`;
+}
+$("screenCard").innerHTML=cardSVG();
+$("printCard").innerHTML=cardSVG();
+$("printBtn").onclick=()=>window.print();
+
+/* =======================
+   OPEN CV
+   ======================= */
+function waitCv(){
+  if(window.cv && cv.Mat){
+    cvReady=true;
+    $("cvStatus").className="ok";
+    $("cvStatus").innerHTML="<b>Motor de leitura carregado.</b>";
+  }else setTimeout(waitCv,250);
+}
+waitCv();
+
+/* =======================
+   CÂMERA / FOTO
+   ======================= */
+$("openCam").onclick=async()=>{
+  if(!navigator.mediaDevices?.getUserMedia){
+    alert("Este navegador não permite câmera.");return;
+  }
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false
+    });
+    $("video").srcObject=stream;$("video").style.display="block";
+    $("openCam").disabled=true;$("stopCam").disabled=false;
+    $("capture").disabled=false;$("capture").classList.add("show");
+    await $("video").play();
+  }catch(e){alert("Não foi possível abrir a câmera.");}
+};
+$("stopCam").onclick=()=>{
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  $("video").srcObject=null;$("video").style.display="none";
+  $("openCam").disabled=false;$("stopCam").disabled=true;
+  $("capture").disabled=true;$("capture").classList.remove("show");
+};
+$("capture").onclick=()=>{
+  const v=$("video");if(v.readyState<2)return;
+  const c=$("canvasIn");c.width=v.videoWidth;c.height=v.videoHeight;
+  c.getContext("2d").drawImage(v,0,0);c.style.display="block";
+  processCanvas(c);
+};
+$("fileInput").onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const img=new Image();
+  img.onload=()=>{
+    const c=$("canvasIn");
+    const max=1800,scale=Math.min(1,max/img.naturalWidth);
+    c.width=Math.round(img.naturalWidth*scale);c.height=Math.round(img.naturalHeight*scale);
+    c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+    c.style.display="block";processCanvas(c);URL.revokeObjectURL(img.src);
+  };
+  img.src=URL.createObjectURL(f);
+};
+
+/* =======================
+   DETECÇÃO DOS 4 MARCADORES
+   ======================= */
+function sortCorners(pts){
+  const sums=pts.map(p=>p.x+p.y), diffs=pts.map(p=>p.x-p.y);
+  return [
+    pts[sums.indexOf(Math.min(...sums))], // TL
+    pts[diffs.indexOf(Math.max(...diffs))], // TR
+    pts[sums.indexOf(Math.max(...sums))], // BR
+    pts[diffs.indexOf(Math.min(...diffs))]  // BL
+  ];
+}
+function findMarkers(gray){
+  const thr=new cv.Mat();
+  cv.threshold(gray,thr,0,255,cv.THRESH_BINARY_INV+cv.THRESH_OTSU);
+  const contours=new cv.MatVector(),hier=new cv.Mat();
+  cv.findContours(thr,contours,hier,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE);
+  const minDim=Math.min(gray.cols,gray.rows), candidates=[];
+  for(let i=0;i<contours.size();i++){
+    const cnt=contours.get(i);
+    const area=cv.contourArea(cnt);
+    const r=cv.boundingRect(cnt);
+    const ar=r.width/r.height, fill=area/(r.width*r.height);
+    const size=Math.max(r.width,r.height);
+    if(ar>.76 && ar<1.24 && fill>.72 && size>minDim*.035 && size<minDim*.16){
+      candidates.push({x:r.x+r.width/2,y:r.y+r.height/2,area,size,fill});
+    }
+    cnt.delete();
+  }
+  contours.delete();hier.delete();thr.delete();
+  if(candidates.length<4)return null;
+
+  /* Marcadores são os maiores quadrados sólidos do cartão.
+     Depois exigimos distribuição pelos 4 quadrantes. */
+  const tops=candidates.sort((a,b)=>b.area-a.area).slice(0,12);
+  const W=gray.cols,H=gray.rows;
+  const quadrants=[
+    p=>p.x<W*.5&&p.y<H*.5,
+    p=>p.x>=W*.5&&p.y<H*.5,
+    p=>p.x>=W*.5&&p.y>=H*.5,
+    p=>p.x<W*.5&&p.y>=H*.5
+  ];
+  const chosen=[];
+  for(const test of quadrants){
+    const arr=tops.filter(test);
+    if(!arr.length)return null;
+    chosen.push(arr.sort((a,b)=>b.area-a.area)[0]);
+  }
+  return [chosen[0],chosen[1],chosen[2],chosen[3]]; // TL TR BR BL
+}
+function warpFromMarkers(src,markers){
+  const srcPts=cv.matFromArray(4,1,cv.CV_32FC2,[
+    markers[0].x,markers[0].y, markers[1].x,markers[1].y,
+    markers[2].x,markers[2].y, markers[3].x,markers[3].y
+  ]);
+  const dstPts=cv.matFromArray(4,1,cv.CV_32FC2,[
+    MARKER_CENTERS[0][0],MARKER_CENTERS[0][1],
+    MARKER_CENTERS[1][0],MARKER_CENTERS[1][1],
+    MARKER_CENTERS[3][0],MARKER_CENTERS[3][1],
+    MARKER_CENTERS[2][0],MARKER_CENTERS[2][1]
+  ]);
+  const M=cv.getPerspectiveTransform(srcPts,dstPts),dst=new cv.Mat();
+  cv.warpPerspective(src,dst,M,new cv.Size(CARD_W,CARD_H),cv.INTER_LINEAR,cv.BORDER_CONSTANT,new cv.Scalar(255,255,255,255));
+  srcPts.delete();dstPts.delete();M.delete();return dst;
+}
+
+/* =======================
+   SCORE DE PREENCHIMENTO
+   ======================= */
+function bubbleScore(rgba,cx,cy){
+  const data=rgba.data,w=rgba.cols,h=rgba.rows;
+  let n=0,dark=0,blue=0,sumY=0;
+  let rn=0,ringY=0;
+  const rIn=20,r1=38,r2=50;
+  const x0=Math.max(0,cx-r2),x1=Math.min(w-1,cx+r2);
+  const y0=Math.max(0,cy-r2),y1=Math.min(h-1,cy+r2);
+  for(let y=y0;y<=y1;y++){
+    for(let x=x0;x<=x1;x++){
+      const dx=x-cx,dy=y-cy,d2=dx*dx+dy*dy,idx=(y*w+x)*4;
+      const R=data[idx],G=data[idx+1],B=data[idx+2];
+      const Y=.299*R+.587*G+.114*B;
+      if(d2<=rIn*rIn){
+        n++;sumY+=Y;
+        if(Y<175)dark++;
+        const mx=Math.max(R,G,B),mn=Math.min(R,G,B),sat=mx?((mx-mn)/mx):0;
+        if(B>R*1.10 && B>G*.90 && sat>.22 && R<200)blue++;
+      }else if(d2>=r1*r1&&d2<=r2*r2){
+        rn++;ringY+=Y;
+      }
+    }
+  }
+  const avg=n?sumY/n:255, surround=rn?ringY/rn:255;
+  const darkRatio=n?dark/n:0, blueRatio=n?blue/n:0;
+  const contrast=Math.max(0,surround-avg)/100;
+  return {score:.75*darkRatio+1.45*blueRatio+.85*contrast,darkRatio,blueRatio,contrast};
+}
+function detectAnswers(warp){
+  const answers=[],detail=[];
+  for(let q=0;q<5;q++){
+    const vals=BUBBLE_X.map(x=>bubbleScore(warp,x,BUBBLE_Y[q]));
+    const ranked=vals.map((v,i)=>({i,...v})).sort((a,b)=>b.score-a.score);
+    const best=ranked[0],second=ranked[1],gap=best.score-second.score;
+    let ans="",state="ambígua";
+    if(best.score>.38 && gap>.11){ans=LETTERS[best.i];state="alta";}
+    else if(best.score>.28 && gap>.075){ans=LETTERS[best.i];state="média";}
+    answers.push(ans);detail.push({q:q+1,answer:ans,confidence:state,scores:vals.map(v=>+v.score.toFixed(3)),gap:+gap.toFixed(3)});
+  }
+  return {answers,detail};
+}
+
+/* =======================
+   DIAGNÓSTICO VISUAL
+   ======================= */
+function drawDiagnostics(warp,answers){
+  const diag=warp.clone();
+  for(let q=0;q<5;q++){
+    for(let j=0;j<4;j++){
+      const chosen=answers[q]===LETTERS[j];
+      const color=chosen?new cv.Scalar(0,190,0,255):new cv.Scalar(220,80,0,255);
+      cv.circle(diag,new cv.Point(BUBBLE_X[j],BUBBLE_Y[q]),38,color,chosen?6:2);
+    }
+  }
+  cv.imshow("canvasWarp",diag);$("canvasWarp").style.display="block";diag.delete();
+}
+function showResults(out){
+  [...document.querySelectorAll(".res strong")].forEach((e,i)=>e.textContent=out.answers[i]||"?");
+  let hits=0;out.answers.forEach((a,i)=>{if(a===TEST_KEY[i])hits++});
+  const detected=out.answers.filter(Boolean).length;
+  $("scoreBox").innerHTML=`<div class="${detected===5?"ok":"warn"}">
+    Detectadas: <b>${detected}/5</b><br>
+    Respostas: <b>${out.answers.map(a=>a||"?").join(" - ")}</b><br>
+    ${detected===5?`Acertos contra o gabarito de teste (B-C-A-C-B): <b>${hits}/5</b>`:"Questões com ? ficaram sem confiança suficiente; o leitor não inventou uma resposta."}
+  </div>
+  <details><summary>Ver números do diagnóstico</summary>
+  <pre style="white-space:pre-wrap;font-size:12px">${JSON.stringify(out.detail,null,2)}</pre></details>`;
+}
+
+/* =======================
+   PROCESSAMENTO
+   ======================= */
+function processCanvas(canvas){
+  if(!cvReady){alert("O motor ainda está carregando.");return}
+  $("readStatus").innerHTML='<div class="notice">Localizando o cartão e lendo as marcações...</div>';
+  let src=null,gray=null,warp=null;
+  try{
+    src=cv.imread(canvas);gray=new cv.Mat();cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
+    const markers=findMarkers(gray);
+    if(!markers){
+      $("readStatus").innerHTML='<div class="warn"><b>Não encontrei os 4 marcadores.</b><br>Confira se os quatro quadrados pretos apareceram na impressão e deixe todos visíveis na foto.</div>';
+      return;
+    }
+    warp=warpFromMarkers(src,markers);
+    const out=detectAnswers(warp);
+    drawDiagnostics(warp,out.answers);
+    showResults(out);
+    $("readStatus").innerHTML='<div class="ok"><b>Cartão localizado.</b> A perspectiva foi corrigida e as bolhas foram analisadas.</div>';
+  }catch(e){
+    console.error(e);
+    $("readStatus").innerHTML='<div class="warn">Ocorreu um erro durante a leitura. Tente outra foto com a folha inteira visível.</div>';
+  }finally{
+    if(src)src.delete();if(gray)gray.delete();if(warp)warp.delete();
+  }
+}
+</script>
+</body>
+</html>
