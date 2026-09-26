@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corretor de Provas V4</title>
+<style>
+:root{
+  --bg:#eef2f7;--panel:#fff;--ink:#122033;--muted:#6b7a90;--line:#dfe6ef;
+  --blue:#2563eb;--blue2:#1d4ed8;--red:#dc2626;--green:#15803d;--dark:#0f172a;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--dark);color:#fff;padding:22px 24px}
+header h1{margin:0 0 6px;font-size:28px}
+header p{margin:0;color:#cbd5e1}
+nav{display:flex;gap:8px;overflow:auto;padding:10px 14px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+nav button{background:#fff;color:var(--ink);border:1px solid var(--line);padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:700;white-space:nowrap}
+nav button.active{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
+main{max-width:1180px;margin:auto;padding:18px}
+.page{display:none}
+.page.active{display:block}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 3px 12px rgba(15,23,42,.05)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.stat{cursor:pointer}
+.stat strong{display:block;font-size:34px;margin-top:8px}
+.stat span{color:var(--muted)}
+.split{display:grid;grid-template-columns:1fr 1.35fr;gap:16px}
+label{display:block;font-weight:700;margin:12px 0}
+input,select{width:100%;margin-top:6px;padding:11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff}
+button.primary,button.secondary,button.danger,button.success{border:0;color:#fff;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:700}
+.primary{background:var(--blue)} .primary:hover{background:var(--blue2)}
+.secondary{background:#475569}.danger{background:var(--red)}.success{background:var(--green)}
+.row{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.row>*{flex:1;min-width:180px}
+.item{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.item small{display:block;color:var(--muted);margin-top:4px}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.empty,.muted{color:var(--muted)}
+.badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:700}
+.badge.ok{background:#dcfce7;color:#166534}.badge.warn{background:#fef3c7;color:#92400e}
+.notice{padding:12px 14px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;margin:12px 0}
+.notice.ok{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+.answer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.qbox{border:1px solid var(--line);border-radius:12px;padding:10px}
+.opts{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.opts label{margin:0;font-weight:500;display:flex;align-items:center;gap:4px}
+.opts input{width:auto;margin:0}
+.sheet{background:#fff;color:#000;max-width:800px;min-height:1080px;margin:18px auto;padding:28px;border:1px solid #aaa;page-break-after:always}
+.sheetHead{display:flex;justify-content:space-between;gap:18px;border-bottom:2px solid #111;padding-bottom:12px}
+.codebox{border:2px solid #111;padding:10px;min-width:180px;text-align:center;font-family:monospace;font-weight:bold}
+.sheetGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;margin-top:18px}
+.sheetRow{display:flex;align-items:center;gap:8px}
+.bubble{width:27px;height:27px;border:2px solid #111;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold}
+.filebox{border:1px dashed #94a3b8;border-radius:12px;padding:12px;margin-top:10px}
+.fileline{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+hr{border:0;border-top:1px solid var(--line);margin:18px 0}
+@media(max-width:800px){.split{grid-template-columns:1fr}main{padding:12px}.sheetGrid{grid-template-columns:1fr}}
+@media print{
+  header,nav,.no-print,#sheets .card{display:none!important}
+  body{background:#fff}
+  main{max-width:none;padding:0}
+  .page{display:none!important}
+  #sheets.page{display:block!important}
+  .sheet{border:0;margin:0;max-width:none;min-height:auto}
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<style id="v4-extra">
+.scan-wrap{position:relative;display:inline-block;width:100%;max-width:520px}
+.scan-wrap video{display:block;width:100%;border-radius:14px;background:#000}
+.scan-guide{position:absolute;left:8%;right:8%;top:8%;bottom:8%;border:3px solid #22c55e;border-radius:12px;pointer-events:none;box-shadow:0 0 0 9999px rgba(0,0,0,.22)}
+.scan-guide::before,.scan-guide::after{content:"";position:absolute;width:28px;height:28px;border-color:#fff}
+.scan-tip{font-size:14px;color:#475569;margin-top:8px}
+.auto-result{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px;margin-top:12px}
+.auto-warn{background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px;margin-top:12px}
+.omr-card{width:100%;max-width:620px;margin:14px auto;border:2px solid #111;padding:14px;background:#fff}
+.omr-head{display:grid;grid-template-columns:1fr 130px;gap:12px;align-items:center;border-bottom:2px solid #111;padding-bottom:10px}
+.omr-qr{display:flex;align-items:center;justify-content:center;min-height:120px}
+.omr-grid{margin-top:14px}
+.omr-row{display:grid;grid-template-columns:42px repeat(5,52px);align-items:center;gap:7px;margin:8px 0}
+.omr-row.four{grid-template-columns:42px repeat(4,52px)}
+.omr-bubble{width:32px;height:32px;border:2px solid #111;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin:auto}
+.omr-corners{display:flex;justify-content:space-between;margin-bottom:6px}
+.omr-corner{width:22px;height:22px;background:#111}
+@media print{
+  .omr-card{border:2px solid #000;page-break-after:always;max-width:none;width:18cm}
+  .omr-bubble{width:30px;height:30px}
+}
+</style>
+
+</head>
+<body>
+<header>
+  <h1>Corretor de Provas</h1>
+  <p>Versão 4 — QR Code + leitura automática do cartão-resposta</p>
+</header>
+
+<nav id="nav">
+  <button data-page="home" class="active">Início</button>
+  <button data-page="classes">Turmas</button>
+  <button data-page="students">Alunos</button>
+  <button data-page="tests">Provas</button>
+  <button data-page="sheets">Cartões-resposta</button>
+  <button data-page="correction">Correção</button>
+</nav>
+
+<main>
+<section id="home" class="page active">
+  <div class="grid">
+    <div class="card stat" data-go="classes"><span>Turmas</span><strong id="nClasses">0</strong><small>Clique para abrir</small></div>
+    <div class="card stat" data-go="students"><span>Alunos</span><strong id="nStudents">0</strong><small>Clique para abrir</small></div>
+    <div class="card stat" data-go="tests"><span>Provas</span><strong id="nTests">0</strong><small>Clique para abrir</small></div>
+    <div class="card stat" data-go="correction"><span>Correções</span><strong id="nCorrections">0</strong><small>Etapa seguinte</small></div>
+  </div>
+  <div class="card">
+    <h2>Como usar</h2>
+    <ol>
+      <li>Cadastre uma turma.</li>
+      <li>Cadastre ou importe os alunos.</li>
+      <li>Crie a prova e selecione o PDF ou Word.</li>
+      <li>Cadastre o gabarito.</li>
+      <li>Gere os cartões-resposta.</li>
+    </ol>
+    <div class="notice">Nesta versão, o arquivo da prova é realmente salvo no navegador. Você pode abri-lo novamente depois.</div>
+  </div>
+</section>
+
+<section id="classes" class="page">
+  <div class="split">
+    <div class="card">
+      <h2>Nova turma</h2>
+      <form id="classForm">
+        <label>Nome da turma<input id="className" required placeholder="Ex.: 6º C"></label>
+        <label>Ano letivo<input id="classYear" type="number" value="2026" required></label>
+        <button class="primary" type="submit">Adicionar turma</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Turmas cadastradas</h2>
+      <div id="classList"></div>
+    </div>
+  </div>
+</section>
+
+<section id="students" class="page">
+  <div class="split">
+    <div class="card">
+      <h2>Novo aluno</h2>
+      <form id="studentForm">
+        <label>Turma<select id="studentClass" required></select></label>
+        <label>Nome completo<input id="studentName" required placeholder="Nome do aluno"></label>
+        <button class="primary" type="submit">Adicionar aluno</button>
+      </form>
+      <hr>
+      <h3>Importar lista</h3>
+      <p class="muted">Aceita CSV ou TXT, com um nome por linha ou primeira coluna contendo o nome.</p>
+      <label>Turma<select id="csvClass"></select></label>
+      <label>Arquivo<input id="csvFile" type="file" accept=".csv,.txt"></label>
+      <button id="importBtn" class="secondary" type="button">Importar alunos</button>
+    </div>
+    <div class="card">
+      <h2>Alunos cadastrados</h2>
+      <label>Filtrar por turma<select id="studentFilter"></select></label>
+      <div id="studentList"></div>
+    </div>
+  </div>
+</section>
+
+<section id="tests" class="page">
+  <div class="split">
+    <div class="card">
+      <h2>Nova prova</h2>
+      <form id="testForm">
+        <label>Nome da prova<input id="testName" required placeholder="Ex.: Avaliação de Geografia"></label>
+        <label>Turma<select id="testClass" required></select></label>
+        <label>Número de questões<input id="qCount" type="number" min="1" max="100" value="10" required></label>
+        <label>Alternativas<select id="optCount"><option value="4">A até D</option><option value="5">A até E</option></select></label>
+        <label>Arquivo da prova
+          <input id="testFile" type="file" accept=".pdf,.doc,.docx" required>
+        </label>
+        <div id="selectedFile" class="filebox muted">Nenhum arquivo selecionado.</div>
+        <button class="primary" type="submit">Salvar prova e abrir gabarito</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Provas cadastradas</h2>
+      <div id="testList"></div>
+    </div>
+  </div>
+
+  <div id="keyCard" class="card" style="display:none">
+    <h2>Gabarito</h2>
+    <div id="keyTitle"></div>
+    <form id="keyForm">
+      <div id="keyGrid" class="answer-grid"></div>
+      <button class="primary" type="submit">Salvar gabarito</button>
+    </form>
+  </div>
+</section>
+
+<section id="sheets" class="page">
+  <div class="card no-print">
+    <h2>Gerar cartões-resposta</h2>
+    <div class="row">
+      <label>Prova<select id="sheetTest"></select></label>
+      <button id="genSheets" class="primary" type="button">Gerar cartões</button>
+      <button id="printSheets" class="secondary" type="button">Imprimir</button>
+    </div>
+  </div>
+  <div id="sheetOutput"></div>
+</section>
+
+<section id="correction" class="page">
+  <div class="card">
+    <h2>Correção automática pela câmera</h2>
+    <p>1) Leia o QR Code. 2) Depois alinhe o cartão-resposta inteiro dentro do retângulo verde e toque em <b>Ler respostas</b>.</p>
+    <div class="notice">Use boa iluminação e deixe a folha o mais reta possível. Para a câmera funcionar, o site precisa estar em HTTPS.</div>
+
+    <div class="row no-print">
+      <button id="startCamera" class="primary" type="button">📷 Abrir câmera / Ler QR</button>
+      <button id="readBubbles" class="success" type="button" disabled>⭕ Ler respostas</button>
+      <button id="stopCamera" class="secondary" type="button" disabled>Parar câmera</button>
+    </div>
+
+    <div id="cameraBox" style="display:none;margin-top:14px">
+      <div class="scan-wrap">
+        <video id="qrVideo" autoplay playsinline></video>
+        <div class="scan-guide"></div>
+      </div>
+      <canvas id="qrCanvas" style="display:none"></canvas>
+      <div class="scan-tip">Mantenha o cartão inteiro dentro do retângulo verde.</div>
+    </div>
+
+    <div id="scanResult" style="margin-top:14px"></div>
+  </div>
+
+  <div id="manualCorrectionCard" class="card" style="display:none">
+    <h2>Aluno identificado</h2>
+    <div id="identifiedStudent"></div>
+    <div id="autoReadStatus"></div>
+    <hr>
+    <h3>Respostas detectadas</h3>
+    <p class="muted">Você pode conferir ou corrigir alguma alternativa antes de salvar.</p>
+    <form id="correctionForm">
+      <div id="correctionGrid" class="answer-grid"></div>
+      <button class="success" type="submit">Corrigir e salvar resultado</button>
+    </form>
+    <div id="correctionResult" style="margin-top:16px"></div>
+  </div>
+</section>
+</main>
+
+<script>
+const LS="corretor_provas_v2";
+let state=load();
+let editingTest=null;
+
+function load(){
+  try{return JSON.parse(localStorage.getItem(LS))||{classes:[],students:[],tests:[],corrections:[]}}
+  catch(e){return{classes:[],students:[],tests:[],corrections:[]}}
+}
+function save(){localStorage.setItem(LS,JSON.stringify(state));render()}
+function uid(p){return p+"_"+Date.now()+"_"+Math.random().toString(36).slice(2,8)}
+function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function $(id){return document.getElementById(id)}
+
+function openPage(id){
+  document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+  $(id).classList.add("active");
+  const b=document.querySelector('nav button[data-page="'+id+'"]');
+  if(b)b.classList.add("active");
+  window.scrollTo(0,0);
+}
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>openPage(b.dataset.page));
+document.querySelectorAll("[data-go]").forEach(c=>c.onclick=()=>openPage(c.dataset.go));
+
+/* IndexedDB: arquivos reais das provas */
+const DBNAME="corretor_provas_files_v2";
+function dbOpen(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(DBNAME,1);
+    req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains("files"))db.createObjectStore("files",{keyPath:"testId"})};
+    req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
+  });
+}
+async function saveFile(testId,file){
+  const db=await dbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction("files","readwrite");
+    tx.objectStore("files").put({testId,name:file.name,type:file.type,size:file.size,blob:file});
+    tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error);
+  });
+}
+async function getFile(testId){
+  const db=await dbOpen();
+  return new Promise((resolve,reject)=>{
+    const req=db.transaction("files","readonly").objectStore("files").get(testId);
+    req.onsuccess=()=>resolve(req.result||null); req.onerror=()=>reject(req.error);
+  });
+}
+async function delFile(testId){
+  const db=await dbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction("files","readwrite");tx.objectStore("files").delete(testId);
+    tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);
+  });
+}
+async function openStoredFile(testId){
+  const rec=await getFile(testId);
+  if(!rec)return alert("O arquivo não foi encontrado neste navegador.");
+  const url=URL.createObjectURL(rec.blob);
+  window.open(url,"_blank");
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+window.openStoredFile=openStoredFile;
+
+$("testFile").addEventListener("change",()=>{
+  const f=$("testFile").files[0];
+  $("selectedFile").innerHTML=f
+    ? '<b>Selecionado:</b> '+esc(f.name)+'<br><span class="muted">'+(f.size/1024/1024).toFixed(2)+' MB</span>'
+    : 'Nenhum arquivo selecionado.';
+});
+
+$("classForm").onsubmit=e=>{
+  e.preventDefault();
+  state.classes.push({id:uid("turma"),name:$("className").value.trim(),year:Number($("classYear").value)});
+  e.target.reset();$("classYear").value=2026;save();
+};
+$("studentForm").onsubmit=e=>{
+  e.preventDefault();
+  if(!$("studentClass").value)return alert("Cadastre e selecione uma turma.");
+  state.students.push({id:uid("aluno"),classId:$("studentClass").value,name:$("studentName").value.trim(),code:Math.random().toString(36).slice(2,8).toUpperCase()});
+  $("studentName").value="";save();
+};
+$("studentFilter").onchange=renderStudents;
+
+$("importBtn").onclick=async()=>{
+  const f=$("csvFile").files[0],classId=$("csvClass").value;
+  if(!classId)return alert("Selecione a turma.");
+  if(!f)return alert("Escolha o arquivo com os nomes.");
+  const txt=await f.text();
+  let rows=txt.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  if(rows.length&&/^nome([,;]|$)/i.test(rows[0]))rows=rows.slice(1);
+  const names=rows.map(x=>x.split(/[;,]/)[0].trim()).filter(Boolean);
+  names.forEach(name=>state.students.push({id:uid("aluno"),classId,name,code:Math.random().toString(36).slice(2,8).toUpperCase()}));
+  $("csvFile").value="";save();alert(names.length+" aluno(s) importado(s).");
+};
+
+$("testForm").onsubmit=async e=>{
+  e.preventDefault();
+  const f=$("testFile").files[0];
+  if(!f)return alert("Escolha o PDF ou Word da prova.");
+  if(!$("testClass").value)return alert("Selecione a turma.");
+  const test={id:uid("prova"),name:$("testName").value.trim(),classId:$("testClass").value,
+    questionCount:Number($("qCount").value),optionCount:Number($("optCount").value),
+    fileName:f.name,fileType:f.type,fileSize:f.size,answerKey:Array(Number($("qCount").value)).fill("")};
+  try{
+    await saveFile(test.id,f);
+    state.tests.push(test); editingTest=test.id; save();
+    alert("Prova e arquivo salvos com sucesso.");
+    openKey(test.id);
+  }catch(err){
+    console.error(err); alert("Não foi possível salvar o arquivo neste navegador.");
+  }
+};
+
+$("keyForm").onsubmit=e=>{
+  e.preventDefault();
+  const t=state.tests.find(x=>x.id===editingTest);if(!t)return;
+  const arr=[];
+  for(let i=0;i<t.questionCount;i++){
+    const r=document.querySelector('input[name="q'+i+'"]:checked');
+    arr.push(r?r.value:"");
+  }
+  if(arr.some(x=>!x))return alert("Preencha todas as questões.");
+  t.answerKey=arr;save();alert("Gabarito salvo.");
+};
+
+function openKey(id){
+  const t=state.tests.find(x=>x.id===id);if(!t)return;
+  editingTest=id;$("keyCard").style.display="block";$("keyTitle").innerHTML="<p><b>"+esc(t.name)+"</b> — "+t.questionCount+" questões</p>";
+  const letters=["A","B","C","D","E"].slice(0,t.optionCount);
+  $("keyGrid").innerHTML=Array.from({length:t.questionCount},(_,i)=>`
+    <div class="qbox"><b>Questão ${i+1}</b><div class="opts">
+      ${letters.map(l=>`<label><input type="radio" name="q${i}" value="${l}" ${t.answerKey[i]===l?"checked":""}> ${l}</label>`).join("")}
+    </div></div>`).join("");
+  openPage("tests");setTimeout(()=>$("keyCard").scrollIntoView({behavior:"smooth"}),50);
+}
+window.openKey=openKey;
+
+async function removeTest(id){
+  if(!confirm("Excluir esta prova?"))return;
+  await delFile(id).catch(()=>{});
+  state.tests=state.tests.filter(x=>x.id!==id);save();
+}
+function removeStudent(id){state.students=state.students.filter(x=>x.id!==id);save()}
+function removeClass(id){
+  if(!confirm("Excluir a turma também excluirá seus alunos e provas. Continuar?"))return;
+  const testIds=state.tests.filter(x=>x.classId===id).map(x=>x.id);
+  testIds.forEach(x=>delFile(x).catch(()=>{}));
+  state.classes=state.classes.filter(x=>x.id!==id);
+  state.students=state.students.filter(x=>x.classId!==id);
+  state.tests=state.tests.filter(x=>x.classId!==id);save();
+}
+window.removeTest=removeTest;window.removeStudent=removeStudent;window.removeClass=removeClass;
+
+function fill(id,items,blank){
+  const s=$(id),v=s.value;
+  s.innerHTML='<option value="">'+blank+'</option>'+items.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join("");
+  if([...s.options].some(o=>o.value===v))s.value=v;
+}
+function renderClasses(){
+  $("classList").innerHTML=state.classes.length?state.classes.map(c=>`
+    <div class="item"><div><b>${esc(c.name)}</b><small>${c.year}</small></div>
+    <button class="danger" onclick="removeClass('${c.id}')">Excluir</button></div>`).join(""):'<p class="empty">Nenhuma turma cadastrada.</p>';
+}
+function renderStudents(){
+  const f=$("studentFilter").value;
+  const arr=(f?state.students.filter(x=>x.classId===f):state.students).slice().sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+  $("studentList").innerHTML=arr.length?arr.map(s=>{
+    const c=state.classes.find(x=>x.id===s.classId);
+    return `<div class="item"><div><b>${esc(s.name)}</b><small>${esc(c?.name||"")} • ${esc(s.code)}</small></div>
+    <button class="danger" onclick="removeStudent('${s.id}')">Excluir</button></div>`;
+  }).join(""):'<p class="empty">Nenhum aluno cadastrado.</p>';
+}
+function renderTests(){
+  $("testList").innerHTML=state.tests.length?state.tests.map(t=>{
+    const c=state.classes.find(x=>x.id===t.classId),ok=t.answerKey&&t.answerKey.every(Boolean);
+    return `<div class="item"><div><b>${esc(t.name)}</b>
+      <small>${esc(c?.name||"")} • ${t.questionCount} questões</small>
+      <small>📎 ${esc(t.fileName||"Sem arquivo")} <span class="badge ${ok?"ok":"warn"}">${ok?"Gabarito completo":"Gabarito pendente"}</span></small>
+      </div><div class="actions">
+      <button class="success" onclick="openStoredFile('${t.id}')">Abrir arquivo</button>
+      <button class="primary" onclick="openKey('${t.id}')">Gabarito</button>
+      <button class="danger" onclick="removeTest('${t.id}')">Excluir</button>
+      </div></div>`;
+  }).join(""):'<p class="empty">Nenhuma prova cadastrada.</p>';
+}
+function render(){
+  $("nClasses").textContent=state.classes.length;$("nStudents").textContent=state.students.length;
+  $("nTests").textContent=state.tests.length;$("nCorrections").textContent=state.corrections.length;
+  renderClasses();
+  fill("studentClass",state.classes,"Selecione");fill("csvClass",state.classes,"Selecione");
+  fill("studentFilter",state.classes,"Todas as turmas");fill("testClass",state.classes,"Selecione");
+  fill("sheetTest",state.tests,"Selecione");
+  renderStudents();renderTests();
+}
+$("genSheets").onclick=()=>{
+  const t=state.tests.find(x=>x.id===$("sheetTest").value);
+  if(!t)return alert("Selecione uma prova.");
+  if(!t.answerKey.every(Boolean))return alert("Complete o gabarito dessa prova.");
+  const alunos=state.students.filter(x=>x.classId===t.classId).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+  if(!alunos.length)return alert("Não há alunos nessa turma.");
+  const turma=state.classes.find(x=>x.id===t.classId);
+  const letters=["A","B","C","D","E"].slice(0,t.optionCount);
+
+  $("sheetOutput").innerHTML=alunos.map(a=>`
+    <section class="sheet">
+      <div class="omr-card" data-test="${t.id}" data-student="${a.id}">
+        <div class="omr-corners"><span class="omr-corner"></span><span class="omr-corner"></span></div>
+        <div class="omr-head">
+          <div>
+            <h2 style="margin:0 0 6px">${esc(t.name)}</h2>
+            <div><b>Aluno:</b> ${esc(a.name)}</div>
+            <div><b>Turma:</b> ${esc(turma?.name||"")}</div>
+            <div style="margin-top:5px;font-size:12px">Preencha completamente uma bolha por questão.</div>
+          </div>
+          <div>
+            <div id="qr_${a.id}_${t.id}" class="qrTarget omr-qr"
+                 data-payload="${esc(JSON.stringify({v:2,testId:t.id,studentId:a.id,studentCode:a.code}))}"></div>
+            <div style="font-size:11px;text-align:center">${esc(a.code)}</div>
+          </div>
+        </div>
+        <div class="omr-grid">
+          ${Array.from({length:t.questionCount},(_,i)=>`
+            <div class="omr-row ${t.optionCount===4?"four":""}">
+              <b>${String(i+1).padStart(2,"0")}</b>
+              ${letters.map(l=>`<span class="omr-bubble">${l}</span>`).join("")}
+            </div>`).join("")}
+        </div>
+        <div class="omr-corners" style="margin-top:12px"><span class="omr-corner"></span><span class="omr-corner"></span></div>
+        <div style="font-size:10px;margin-top:6px">ID ${esc(t.id)} / ${esc(a.id)}</div>
+      </div>
+    </section>`).join("");
+
+  document.querySelectorAll(".qrTarget").forEach(el=>{
+    const payload=el.dataset.payload;
+    el.innerHTML="";
+    if(window.QRCode){
+      new QRCode(el,{text:payload,width:112,height:112,correctLevel:QRCode.CorrectLevel.M});
+    }else{
+      el.innerHTML="<div style='font-size:10px'>QR indisponível</div>";
+    }
+  });
+};
+$("printSheets").onclick=()=>window.print();
+
+/* ===== QR + LEITURA AUTOMÁTICA DAS BOLHAS ===== */
+let qrStream=null;
+let qrTimer=null;
+let currentScan=null;
+let omrMode=false;
+
+async function startQrCamera(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    alert("Este navegador não permite acesso à câmera.");
+    return;
+  }
+  if(!window.isSecureContext){
+    alert("A câmera precisa de HTTPS ou localhost.");
+    return;
+  }
+  try{
+    qrStream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},
+      audio:false
+    });
+    const video=$("qrVideo");
+    video.srcObject=qrStream;
+    $("cameraBox").style.display="block";
+    $("startCamera").disabled=true;
+    $("stopCamera").disabled=false;
+    $("readBubbles").disabled=true;
+    $("scanResult").innerHTML='<div class="notice">Aponte primeiro para o QR Code do cartão.</div>';
+    await video.play();
+    omrMode=false;
+    beginQrDetection();
+  }catch(err){
+    console.error(err);
+    alert("Não foi possível abrir a câmera. Verifique a permissão do navegador.");
+  }
+}
+
+function stopQrCamera(){
+  if(qrTimer){clearInterval(qrTimer);qrTimer=null;}
+  if(qrStream){qrStream.getTracks().forEach(t=>t.stop());qrStream=null;}
+  const video=$("qrVideo"); if(video) video.srcObject=null;
+  $("cameraBox").style.display="none";
+  $("startCamera").disabled=false;
+  $("stopCamera").disabled=true;
+  $("readBubbles").disabled=true;
+}
+
+async function beginQrDetection(){
+  if(!("BarcodeDetector" in window)){
+    $("scanResult").innerHTML='<div class="notice">Seu navegador não possui leitor QR nativo. Use Chrome/Brave atualizado no Android.</div>';
+    return;
+  }
+  let detector;
+  try{
+    const formats=await BarcodeDetector.getSupportedFormats();
+    if(!formats.includes("qr_code")) throw new Error("QR não suportado");
+    detector=new BarcodeDetector({formats:["qr_code"]});
+  }catch(e){
+    $("scanResult").innerHTML='<div class="notice">Seu navegador não suporta leitura de QR Code.</div>';
+    return;
+  }
+  qrTimer=setInterval(async()=>{
+    if(omrMode) return;
+    const video=$("qrVideo");
+    if(video.readyState<2)return;
+    try{
+      const codes=await detector.detect(video);
+      if(codes&&codes.length)handleQrPayload(codes[0].rawValue);
+    }catch(e){}
+  },350);
+}
+
+function handleQrPayload(raw){
+  let data;
+  try{data=JSON.parse(raw)}catch(e){return}
+  if(!data?.testId||!data?.studentId)return;
+  const t=state.tests.find(x=>x.id===data.testId);
+  const s=state.students.find(x=>x.id===data.studentId);
+  if(!t||!s){
+    $("scanResult").innerHTML='<div class="notice">QR válido, mas prova/aluno não existem neste aparelho.</div>';
+    return;
+  }
+  currentScan={test:t,student:s};
+  omrMode=true;
+  if(qrTimer){clearInterval(qrTimer);qrTimer=null;}
+  showIdentifiedStudent(t,s);
+  $("readBubbles").disabled=false;
+  $("scanResult").innerHTML='<div class="notice ok"><b>QR identificado.</b> Agora afaste a câmera, enquadre o cartão inteiro no retângulo verde e toque em <b>Ler respostas</b>.</div>';
+}
+
+function showIdentifiedStudent(t,s){
+  const turma=state.classes.find(x=>x.id===s.classId);
+  $("manualCorrectionCard").style.display="block";
+  $("identifiedStudent").innerHTML=`
+    <p><b>Aluno:</b> ${esc(s.name)}</p>
+    <p><b>Turma:</b> ${esc(turma?.name||"")}</p>
+    <p><b>Prova:</b> ${esc(t.name)}</p>`;
+  buildCorrectionGrid(t,[]);
+  $("correctionResult").innerHTML="";
+  $("autoReadStatus").innerHTML="";
+}
+
+function buildCorrectionGrid(t,answers){
+  const letters=["A","B","C","D","E"].slice(0,t.optionCount);
+  $("correctionGrid").innerHTML=Array.from({length:t.questionCount},(_,i)=>`
+    <div class="qbox"><b>Questão ${i+1}</b><div class="opts">
+      ${letters.map(l=>`<label><input type="radio" name="corrq${i}" value="${l}" ${answers[i]===l?"checked":""}> ${l}</label>`).join("")}
+    </div></div>`).join("");
+}
+
+function grayscaleAt(data,w,h,cx,cy,r){
+  let sum=0,count=0,dark=0;
+  const x0=Math.max(0,Math.floor(cx-r)), x1=Math.min(w-1,Math.ceil(cx+r));
+  const y0=Math.max(0,Math.floor(cy-r)), y1=Math.min(h-1,Math.ceil(cy+r));
+  for(let y=y0;y<=y1;y++){
+    for(let x=x0;x<=x1;x++){
+      const dx=x-cx,dy=y-cy;
+      if(dx*dx+dy*dy>r*r)continue;
+      const idx=(y*w+x)*4;
+      const g=(data[idx]*0.299+data[idx+1]*0.587+data[idx+2]*0.114);
+      sum+=g; count++;
+      if(g<115)dark++;
+    }
+  }
+  return count?{avg:sum/count,darkRatio:dark/count}:{avg:255,darkRatio:0};
+}
+
+function detectBubblesFromFrame(){
+  if(!currentScan)return;
+  const video=$("qrVideo");
+  if(video.readyState<2)return alert("A câmera ainda não está pronta.");
+
+  const t=currentScan.test;
+  const canvas=$("qrCanvas");
+  const vw=video.videoWidth, vh=video.videoHeight;
+  canvas.width=vw; canvas.height=vh;
+  const ctx=canvas.getContext("2d");
+  ctx.drawImage(video,0,0,vw,vh);
+
+  // A região útil corresponde ao retângulo verde: 8% de margem em cada lado.
+  const gx=vw*0.08, gy=vh*0.08, gw=vw*0.84, gh=vh*0.84;
+  const frame=ctx.getImageData(gx,gy,gw,gh);
+  const w=frame.width,h=frame.height,data=frame.data;
+
+  // Coordenadas normalizadas do cartão padronizado V4.
+  // Cabeçalho ocupa aprox. 28%; questões abaixo.
+  const qTop=0.31, qBottom=0.88;
+  const rowStep=(qBottom-qTop)/Math.max(t.questionCount,1);
+  const yCenters=Array.from({length:t.questionCount},(_,i)=>qTop+rowStep*(i+0.5));
+
+  const xMap4=[0.34,0.48,0.62,0.76];
+  const xMap5=[0.29,0.41,0.53,0.65,0.77];
+  const xs=(t.optionCount===4?xMap4:xMap5);
+  const letters=["A","B","C","D","E"].slice(0,t.optionCount);
+
+  const answers=[];
+  const diagnostics=[];
+  for(let i=0;i<t.questionCount;i++){
+    const vals=xs.map(xn=>{
+      const cx=xn*w, cy=yCenters[i]*h;
+      const r=Math.max(7,Math.min(w,h)*0.018);
+      return grayscaleAt(data,w,h,cx,cy,r);
+    });
+    const scored=vals.map((v,j)=>({j,score:v.darkRatio,avg:v.avg})).sort((a,b)=>b.score-a.score);
+    const best=scored[0],second=scored[1];
+
+    // Marcada: densidade escura suficiente e diferença clara da segunda.
+    let ans="";
+    let status="em branco";
+    if(best.score>=0.22 && (best.score-second.score)>=0.055){
+      ans=letters[best.j]; status="ok";
+    }else if(best.score>=0.18){
+      status="ambígua";
+    }
+    answers.push(ans);
+    diagnostics.push({q:i+1,answer:ans,status,best:best.score,second:second.score});
+  }
+
+  buildCorrectionGrid(t,answers);
+
+  const okCount=answers.filter(Boolean).length;
+  const ambiguous=diagnostics.filter(d=>d.status!=="ok").map(d=>d.q);
+  if(okCount===t.questionCount){
+    $("autoReadStatus").innerHTML='<div class="auto-result"><b>Leitura automática concluída.</b> Todas as '+t.questionCount+' respostas foram detectadas. Confira e salve.</div>';
+  }else{
+    $("autoReadStatus").innerHTML='<div class="auto-warn"><b>Leitura parcial:</b> '+okCount+'/'+t.questionCount+' respostas detectadas. Confira manualmente as questões '+ambiguous.join(", ")+'.</div>';
+  }
+  $("manualCorrectionCard").scrollIntoView({behavior:"smooth"});
+}
+
+$("startCamera").onclick=startQrCamera;
+$("stopCamera").onclick=stopQrCamera;
+$("readBubbles").onclick=detectBubblesFromFrame;
+
+$("correctionForm").onsubmit=e=>{
+  e.preventDefault();
+  if(!currentScan)return;
+  const {test:t,student:s}=currentScan;
+  const answers=[];
+  for(let i=0;i<t.questionCount;i++){
+    const r=document.querySelector('input[name="corrq'+i+'"]:checked');
+    answers.push(r?r.value:"");
+  }
+  if(answers.some(x=>!x))return alert("Revise as questões sem resposta antes de salvar.");
+  let hits=0;
+  const details=answers.map((a,i)=>{
+    const ok=a===t.answerKey[i]; if(ok)hits++;
+    return {q:i+1,answer:a,correct:t.answerKey[i],ok};
+  });
+  const score=(hits/t.questionCount)*10;
+  state.corrections=state.corrections.filter(c=>!(c.testId===t.id&&c.studentId===s.id));
+  state.corrections.push({
+    id:uid("corr"),testId:t.id,studentId:s.id,answers,details,hits,
+    total:t.questionCount,score:Number(score.toFixed(2)),date:new Date().toISOString()
+  });
+  save();
+  $("correctionResult").innerHTML=`
+    <div class="notice ok"><b>${esc(s.name)}</b><br>Acertos: <b>${hits}/${t.questionCount}</b><br>Nota: <b>${score.toFixed(1)}</b></div>
+    <div>${details.map(d=>`Questão ${d.q}: ${esc(d.answer)} ${d.ok?"✅":"❌ correta: "+esc(d.correct)}`).join("<br>")}</div>`;
+};
+render();
+</script>
+</body>
+</html>
