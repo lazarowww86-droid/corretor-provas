@@ -1,0 +1,1080 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f172a">
+<title>Corretor de Provas</title>
+<meta name="app-version" content="pdf-word-v1">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Corretor de Provas">
+<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
+<style>
+
+:root{
+  --bg:#edf3f8;
+  --panel:#ffffff;
+  --ink:#122236;
+  --muted:#66778e;
+  --line:#dbe4ee;
+  --blue:#2563eb;
+  --blue2:#1d4ed8;
+  --green:#16a34a;
+  --yellow:#d97706;
+  --purple:#7c3aed;
+  --cyan:#0f766e;
+  --slate:#64748b;
+  --dark:#081833;
+  --dark2:#0d2550;
+  --shadow:0 16px 40px rgba(15,23,42,.08);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(180deg,#f6f9fc 0%,#edf3f8 100%);color:var(--ink)}
+header{background:linear-gradient(135deg,var(--dark) 0%, var(--dark2) 100%);color:#fff;padding:24px 18px 74px;border-bottom-left-radius:30px;border-bottom-right-radius:30px;box-shadow:0 18px 36px rgba(8,24,51,.16)}
+.hero-wrap{max-width:1180px;margin:0 auto;display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.hero-brand{display:flex;gap:14px;align-items:flex-start}
+.hero-logo{width:62px;height:62px;border-radius:18px;background:linear-gradient(135deg,#2b7fff,#0b53db);display:flex;align-items:center;justify-content:center;font-size:31px;box-shadow:inset 0 -3px 0 rgba(255,255,255,.22),0 12px 24px rgba(0,0,0,.15)}
+.hero-copy h1{margin:0 0 6px;font-size:clamp(28px,4vw,42px);font-weight:800;letter-spacing:-.03em}
+.hero-copy p{margin:0;color:#d8e6ff;font-size:clamp(16px,2.1vw,20px);line-height:1.35;max-width:620px}
+.hero-sub{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+.hero-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(6px);padding:8px 12px;border-radius:999px;color:#fff;font-size:13px;font-weight:700}
+.hero-actions{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+#headerInstallBtn{background:#fff;color:#0f172a;border:0;border-radius:14px;padding:11px 15px;font-weight:800;display:none;box-shadow:0 10px 24px rgba(0,0,0,.14)}
+nav{max-width:1180px;margin:-42px auto 0;padding:0 12px;position:relative;z-index:60;display:flex;gap:10px;overflow:auto;scroll-snap-type:x proximity}
+nav::-webkit-scrollbar{height:8px}nav::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}
+nav button{flex:0 0 auto;border:1px solid #dce6f2;background:rgba(255,255,255,.92);color:var(--ink);padding:12px 14px;border-radius:18px;font-weight:800;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow);white-space:nowrap;transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;scroll-snap-align:start}
+nav button:hover{transform:translateY(-1px)}
+nav button.active{border-color:#93c5fd;box-shadow:0 14px 30px rgba(37,99,235,.16);outline:3px solid rgba(147,197,253,.22)}
+.nav-ico{width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;flex:none}
+.nav-text{font-size:15px;display:block}
+nav button[data-page="home"] .nav-ico{background:linear-gradient(135deg,#3b82f6,#1d4ed8)}
+nav button[data-page="classes"] .nav-ico{background:linear-gradient(135deg,#0ea5e9,#2563eb)}
+nav button[data-page="students"] .nav-ico{background:linear-gradient(135deg,#22c55e,#16a34a)}
+nav button[data-page="tests"] .nav-ico{background:linear-gradient(135deg,#f59e0b,#d97706)}
+nav button[data-page="cards"] .nav-ico{background:linear-gradient(135deg,#8b5cf6,#6d28d9)}
+nav button[data-page="correction"] .nav-ico{background:linear-gradient(135deg,#7c3aed,#6d28d9)}
+nav button[data-page="resultsPage"] .nav-ico{background:linear-gradient(135deg,#06b6d4,#0f766e)}
+nav button[data-page="backupPage"] .nav-ico{background:linear-gradient(135deg,#94a3b8,#64748b)}
+main{max-width:1180px;margin:auto;padding:18px 14px 34px}
+.page{display:none}.page.active{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:18px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card h2,.card h3{margin-top:0;color:#102033}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.split{display:grid;grid-template-columns:1fr 1.35fr;gap:16px}
+.stat{position:relative;overflow:hidden;padding-bottom:22px}
+.stat:before{content:"";position:absolute;left:0;right:0;top:0;height:6px;border-radius:24px 24px 0 0;background:#bfdbfe}
+.grid .stat:nth-child(1){background:linear-gradient(180deg,#ffffff 0%,#f4f9ff 100%)}
+.grid .stat:nth-child(1):before{background:linear-gradient(90deg,#60a5fa,#2563eb)}
+.grid .stat:nth-child(2){background:linear-gradient(180deg,#ffffff 0%,#f4fff8 100%)}
+.grid .stat:nth-child(2):before{background:linear-gradient(90deg,#4ade80,#16a34a)}
+.grid .stat:nth-child(3){background:linear-gradient(180deg,#ffffff 0%,#fff9ec 100%)}
+.grid .stat:nth-child(3):before{background:linear-gradient(90deg,#fbbf24,#d97706)}
+.grid .stat:nth-child(4){background:linear-gradient(180deg,#ffffff 0%,#f5f3ff 100%)}
+.grid .stat:nth-child(4):before{background:linear-gradient(90deg,#a78bfa,#7c3aed)}
+.stat strong{display:block;font-size:48px;margin-top:8px;letter-spacing:-.04em}.stat span{color:var(--muted);font-size:15px}
+.home-lead{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}
+.home-lead .kicker{display:inline-block;background:#eff6ff;color:#1d4ed8;font-weight:800;border-radius:999px;padding:7px 11px;margin-bottom:10px;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.home-lead h2{margin:0 0 8px;font-size:30px}
+.home-lead p{margin:0;color:var(--muted);max-width:700px;line-height:1.45}
+.home-mini-steps{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.home-mini-steps span{background:#f8fafc;border:1px solid var(--line);border-radius:999px;padding:8px 11px;font-size:13px;font-weight:700;color:#334155}
+.quick-menu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:12px}
+.quick-item{border:0;border-radius:26px;padding:18px 18px;display:flex;align-items:center;gap:16px;text-align:left;box-shadow:0 14px 34px rgba(15,23,42,.08);font-weight:800;color:#0f172a;transition:transform .16s ease, box-shadow .16s ease;min-height:108px}
+.quick-item:hover{transform:translateY(-2px);box-shadow:0 18px 38px rgba(15,23,42,.12)}
+.quick-icon{width:64px;height:64px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:32px;color:#fff;flex:none;box-shadow:inset 0 -2px 0 rgba(255,255,255,.22),0 8px 18px rgba(15,23,42,.12)}
+.quick-text strong{display:block;font-size:24px;line-height:1.05;margin-bottom:4px}
+.quick-text small{display:block;font-size:14px;font-weight:600;color:#344256;line-height:1.35}
+.qm-home{background:#eef5ff}.qm-home .quick-icon{background:linear-gradient(135deg,#3b82f6,#1d4ed8)}
+.qm-classes{background:#eaf6ff}.qm-classes .quick-icon{background:linear-gradient(135deg,#0ea5e9,#2563eb)}
+.qm-students{background:#e9fbef}.qm-students .quick-icon{background:linear-gradient(135deg,#22c55e,#16a34a)}
+.qm-tests{background:#fff7de}.qm-tests .quick-icon{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.qm-cards{background:#f1ebff}.qm-cards .quick-icon{background:linear-gradient(135deg,#8b5cf6,#6d28d9)}
+.qm-correction{background:#efeaff}.qm-correction .quick-icon{background:linear-gradient(135deg,#7c3aed,#6d28d9)}
+.qm-results{background:#e8fbfb}.qm-results .quick-icon{background:linear-gradient(135deg,#06b6d4,#0f766e)}
+.qm-backup{background:#edf2f7}.qm-backup .quick-icon{background:linear-gradient(135deg,#94a3b8,#64748b)}
+
+.home-showcase{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;align-items:stretch;margin-bottom:16px}
+.showcase-panel{background:linear-gradient(135deg,#f8fbff 0%,#eef4ff 100%);border:1px solid var(--line);border-radius:24px;padding:18px;box-shadow:var(--shadow)}
+.showcase-panel h3{margin:0 0 8px;font-size:22px}
+.showcase-panel p{margin:0;color:var(--muted);line-height:1.5}
+.showcase-mini{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}
+.showcase-mini .mini{background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px}
+.showcase-mini .mini b{display:block;font-size:15px;margin-bottom:5px}
+.showcase-mini .mini span{font-size:13px;color:#475569;line-height:1.35}
+.phone-demo{background:linear-gradient(180deg,#ffffff 0%,#eef5ff 100%);border:1px solid var(--line);border-radius:28px;padding:16px;position:relative;overflow:hidden;min-height:100%}
+.phone-shell{max-width:310px;margin:0 auto;background:#0b1730;border:6px solid #111827;border-radius:34px;padding:12px 12px 16px;box-shadow:0 24px 40px rgba(15,23,42,.18)}
+.phone-notch{width:110px;height:20px;background:#0b1220;border-radius:0 0 14px 14px;margin:0 auto 10px}
+.phone-screen{background:#f8fbff;border-radius:22px;padding:12px}
+.phone-header{display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#eff6ff,#f8fbff);border:1px solid #d9e6fb;border-radius:18px;padding:12px;margin-bottom:12px}
+.phone-badge{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#1d4ed8);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px}
+.phone-title strong{display:block;font-size:17px;line-height:1.1}
+.phone-title span{font-size:12px;color:#64748b}
+.phone-menu-card{display:flex;align-items:center;gap:12px;border-radius:18px;padding:12px 14px;margin-bottom:10px;font-weight:800;color:#0f172a;box-shadow:0 10px 22px rgba(15,23,42,.07)}
+.phone-menu-card i{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-style:normal;font-size:19px}
+.phone-menu-card small{display:block;color:#475569;font-weight:600;font-size:12px;margin-top:2px}
+.pm1{background:#eaf6ff}.pm1 i{background:linear-gradient(135deg,#38bdf8,#2563eb)}
+.pm2{background:#eafbef}.pm2 i{background:linear-gradient(135deg,#22c55e,#16a34a)}
+.pm3{background:#fff6df}.pm3 i{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.pm4{background:#f3ecff}.pm4 i{background:linear-gradient(135deg,#8b5cf6,#6d28d9)}
+.pm5{background:#eafcfc}.pm5 i{background:linear-gradient(135deg,#06b6d4,#0f766e)}
+.pm6{background:#eef2f7}.pm6 i{background:linear-gradient(135deg,#94a3b8,#64748b)}
+
+.info-strip{display:grid;grid-template-columns:1.1fr 1fr;gap:14px}
+.info-panel{background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);border:1px solid var(--line);border-radius:20px;padding:16px}
+.info-panel h3{margin:0 0 8px;font-size:20px}.info-panel p{margin:0;color:var(--muted);line-height:1.45}
+.flow-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.flow-step{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px}.flow-step b{display:block;margin-bottom:5px;font-size:14px}.flow-step span{font-size:13px;color:#475569;line-height:1.35}
+label{display:block;font-weight:700;margin:11px 0}
+input,select,textarea{width:100%;padding:12px 13px;margin-top:6px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;font-size:15px}
+button{cursor:pointer}
+.primary,.secondary,.success,.danger{border:0;border-radius:12px;padding:11px 15px;font-weight:800;color:#fff;box-shadow:0 8px 20px rgba(15,23,42,.08)}
+.primary{background:linear-gradient(135deg,#2563eb,#1d4ed8)}
+.secondary{background:#475569}.success{background:linear-gradient(135deg,#16a34a,#15803d)}.danger{background:#dc2626}
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:end}
+.item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}.item small{display:block;color:var(--muted);margin-top:3px}
+.actions{display:flex;gap:6px;flex-wrap:wrap}.muted{color:var(--muted)}
+.notice,.ok,.warn{padding:13px 14px;border-radius:14px;margin:10px 0;line-height:1.45}
+.notice{background:#eff6ff;border:1px solid #bfdbfe}.ok{background:#f0fdf4;border:1px solid #bbf7d0}.warn{background:#fff7ed;border:1px solid #fed7aa}
+.answer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.qbox{border:1px solid var(--line);border-radius:16px;padding:12px;background:#fff}
+.opts{display:flex;gap:9px;flex-wrap:wrap;margin-top:7px}.opts label{margin:0;font-weight:500;display:flex;align-items:center;gap:3px}.opts input{width:auto;margin:0}
+.badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:800}.badge.okb{background:#dcfce7;color:#166534}.badge.warnb{background:#fef3c7;color:#92400e}
+table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid var(--line);padding:9px;text-align:left;font-size:14px}th{background:#f8fafc}
+#video{width:100%;max-width:650px;background:#000;border-radius:18px;display:none;box-shadow:var(--shadow)}
+.preview{display:none;width:100%;max-width:650px;border:1px solid #cbd5e1;border-radius:18px;margin-top:10px}
+.result-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.res{border:1px solid #cbd5e1;border-radius:14px;padding:10px;text-align:center;background:#fff}.res strong{display:block;font-size:26px}
+#capture.fab{position:fixed;right:18px;bottom:92px;width:68px;height:68px;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:27px;padding:0;z-index:9999;box-shadow:0 10px 30px rgba(0,0,0,.28);border:4px solid white}
+#capture.fab.show{display:flex}
+.sheet-preview{max-width:640px;margin:10px auto;background:#fff;border:1px solid #cbd5e1;border-radius:18px;overflow:hidden}.sheet-preview svg{display:block;width:100%;height:auto}
+#printArea{display:none}
+#goBackupBtn{margin-top:12px}
+#installOverlay{position:fixed;inset:0;background:rgba(15,23,42,.78);z-index:20000;display:none;align-items:center;justify-content:center;padding:20px}
+#installOverlay.show{display:flex}
+.install-box{width:min(94vw,430px);background:#fff;border-radius:22px;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.35);text-align:center}
+.install-icon{width:82px;height:82px;border-radius:22px;margin:0 auto 14px;display:block}
+.install-box h2{margin:0 0 9px;font-size:24px}.install-box p{color:#475569;line-height:1.45;margin:0 0 18px}
+.install-main{width:100%;font-size:18px;padding:14px 18px!important;margin-bottom:9px}
+.install-skip{width:100%;background:#e2e8f0;color:#0f172a;border:0;border-radius:10px;padding:12px 14px;font-weight:700}
+.install-help{display:none;margin-top:12px;padding:10px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;text-align:left;color:#7c2d12;font-size:14px;line-height:1.4}
+@media(max-width:980px){.split,.info-strip,.home-showcase{grid-template-columns:1fr}.flow-list{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-wrap{flex-direction:column}.hero-actions{align-items:flex-start}}
+@media(max-width:720px){header{padding:24px 14px 66px}.hero-logo{width:56px;height:56px;font-size:28px}.quick-menu{grid-template-columns:1fr}.info-strip,.flow-list,.showcase-mini{grid-template-columns:1fr}.stat strong{font-size:40px}nav{padding:0 10px}.phone-shell{max-width:none}}
+@media(max-width:560px){main{padding:14px 8px 26px}.card{border-radius:20px;padding:16px}.hero-copy h1{font-size:28px}.home-lead h2{font-size:25px}.quick-item{padding:15px 16px;border-radius:20px}.quick-icon{width:52px;height:52px;font-size:26px}.quick-text strong{font-size:21px}.nav-text{font-size:14px}}
+@media print{
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block!important}
+  @page{size:A4;margin:10mm}
+  .print-page{width:190mm;height:277mm;display:flex;align-items:flex-start;justify-content:center;padding-top:8mm;page-break-after:always}
+  .print-page svg{height:auto;display:block}
+  .print-page.normal svg{width:178mm}
+  .print-page.compact svg{width:118mm}
+  .print-page.micro svg{width:100mm}
+}
+@media(display-mode:standalone){#headerInstallBtn{display:none!important}}
+
+</style>
+
+<style id="manual-answer-style">
+.manual-answer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:12px}
+.manual-q{border:1px solid #dbe3ec;border-radius:12px;padding:10px;background:#fff}
+.manual-q b{display:block;margin-bottom:8px}
+.manual-options{display:flex;gap:7px;flex-wrap:wrap}
+.manual-opt{border:2px solid #cbd5e1;background:#fff;color:#102033;border-radius:50%;width:42px;height:42px;font-weight:800;padding:0}
+.manual-opt.selected{background:#2563eb;color:white;border-color:#2563eb}
+.manual-opt.unknown{border-color:#f59e0b}
+.manual-note{color:#64748b;font-size:13px;margin-top:8px}
+.answer-key-strip{display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:#f8fafc;border:1px solid #dbe3ec;border-radius:10px;padding:8px 10px;margin:8px 0 10px;font-size:12px;color:#475569}
+.answer-key-strip b{color:#102033;margin-right:2px}.answer-key-chip{display:inline-flex;align-items:center;gap:3px;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:3px 7px;font-weight:700;color:#334155}
+.manual-q-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.manual-q-head b{margin:0}.correct-mini{font-size:11px;color:#15803d;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:999px;padding:3px 7px;white-space:nowrap;font-weight:700}
+</style>
+</head>
+<body>
+<header>
+  <div class="hero-wrap">
+    <div class="hero-brand">
+      <div class="hero-logo">📝</div>
+      <div class="hero-copy">
+        <h1>Corretor de Provas</h1>
+        <p>Leitura automática de cartão-resposta por câmera, com correção manual, resultados e backup.</p>
+        <div class="hero-sub">
+          <span class="hero-chip">✅ Feito por professor</span>
+          <span class="hero-chip">💾 Dados salvos no navegador</span>
+          <span class="hero-chip">☁️ Backup e restauração</span>
+        </div>
+      </div>
+    </div>
+    <div class="hero-actions">
+      <button id="headerInstallBtn">📲 Instalar aplicativo</button>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <button data-page="home" class="active"><span class="nav-ico">🏠</span><span class="nav-text">Início</span></button>
+  <button data-page="classes"><span class="nav-ico">🏫</span><span class="nav-text">Turmas</span></button>
+  <button data-page="students"><span class="nav-ico">👥</span><span class="nav-text">Alunos</span></button>
+  <button data-page="tests"><span class="nav-ico">📝</span><span class="nav-text">Provas</span></button>
+  <button data-page="cards"><span class="nav-ico">🎫</span><span class="nav-text">Cartões</span></button>
+  <button data-page="correction"><span class="nav-ico">📷</span><span class="nav-text">Correção</span></button>
+  <button data-page="resultsPage"><span class="nav-ico">📊</span><span class="nav-text">Resultados</span></button>
+  <button data-page="backupPage"><span class="nav-ico">☁️</span><span class="nav-text">Backup</span></button>
+</nav>
+
+<div id="installOverlay" aria-modal="true" role="dialog">
+  <div class="install-box">
+    <img class="install-icon" src="icon-192.png" alt="Ícone do Corretor de Provas">
+    <h2>Instalar Corretor de Provas</h2>
+    <p>Instale na tela inicial para abrir com um toque, como um aplicativo normal.</p>
+    <button id="installNowBtn" class="success install-main">📲 Instalar aplicativo</button>
+    <button id="installLaterBtn" class="install-skip">Continuar sem instalar</button>
+    <div id="installHelp" class="install-help"></div>
+  </div>
+</div>
+
+<main>
+<section id="home" class="page active">
+  <div class="card">
+    <div class="home-lead">
+      <div>
+        <span class="kicker">Tela inicial</span>
+        <h2>Bem-vindo ao Corretor de Provas</h2>
+        <p>Escolha uma opção abaixo para começar. A tela foi simplificada para deixar somente o que é útil no dia a dia do professor.</p>
+      </div>
+      <div class="home-mini-steps">
+        <span>1. Turma</span>
+        <span>2. Alunos</span>
+        <span>3. Prova</span>
+        <span>4. Cartões</span>
+        <span>5. Correção</span>
+      </div>
+    </div>
+    <div class="quick-menu">
+      <button type="button" class="quick-item qm-classes" data-go="classes"><span class="quick-icon">🏫</span><span class="quick-text"><strong>Turmas</strong><small>Cadastre e organize as turmas.</small></span></button>
+      <button type="button" class="quick-item qm-students" data-go="students"><span class="quick-icon">👥</span><span class="quick-text"><strong>Alunos</strong><small>Adicione alunos manualmente ou por lista.</small></span></button>
+      <button type="button" class="quick-item qm-tests" data-go="tests"><span class="quick-icon">📝</span><span class="quick-text"><strong>Provas</strong><small>Cadastre a prova e o gabarito.</small></span></button>
+      <button type="button" class="quick-item qm-cards" data-go="cards"><span class="quick-icon">🎫</span><span class="quick-text"><strong>Cartões</strong><small>Gere e imprima os cartões-resposta.</small></span></button>
+      <button type="button" class="quick-item qm-correction" data-go="correction"><span class="quick-icon">📷</span><span class="quick-text"><strong>Corrigir provas</strong><small>Leia o cartão pela câmera e ajuste se necessário.</small></span></button>
+      <button type="button" class="quick-item qm-results" data-go="resultsPage"><span class="quick-icon">📊</span><span class="quick-text"><strong>Resultados</strong><small>Consulte notas, acertos e histórico.</small></span></button>
+      <button type="button" class="quick-item qm-backup" data-go="backupPage"><span class="quick-icon">☁️</span><span class="quick-text"><strong>Backup</strong><small>Salve e recupere seus dados quando precisar.</small></span></button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card stat"><span>Turmas</span><strong id="stClasses">0</strong></div>
+    <div class="card stat"><span>Alunos</span><strong id="stStudents">0</strong></div>
+    <div class="card stat"><span>Provas</span><strong id="stTests">0</strong></div>
+    <div class="card stat"><span>Correções</span><strong id="stResults">0</strong></div>
+  </div>
+
+  <div class="info-strip" style="grid-template-columns:1fr;gap:16px">
+    <div class="card info-panel">
+      <h3>Como usar</h3>
+      <div class="flow-list">
+        <div class="flow-step"><b>1. Cadastre a turma</b><span>Crie a turma e deixe a organização pronta.</span></div>
+        <div class="flow-step"><b>2. Adicione os alunos</b><span>Digite os nomes ou importe uma lista.</span></div>
+        <div class="flow-step"><b>3. Cadastre a prova</b><span>Informe o gabarito e a nota máxima.</span></div>
+        <div class="flow-step"><b>4. Gere e corrija</b><span>Imprima os cartões, leia pela câmera e salve o resultado.</span></div>
+      </div>
+    </div>
+    <div class="card info-panel">
+      <h3>Seus dados</h3>
+      <p>As informações ficam salvas neste navegador. Para maior segurança, faça backup com frequência.</p>
+      <button id="goBackupBtn" class="secondary" type="button">Abrir Backup</button>
+      <div id="lastBackupHome" class="muted" style="margin-top:10px"></div>
+      <div id="cvHome" style="display:none"></div>
+    </div>
+  </div>
+</section>
+
+<section id="classes" class="page">
+  <div class="split">
+    <div class="card">
+      <h2>Nova turma</h2>
+      <form id="classForm">
+        <label>Nome<input id="className" required placeholder="Ex.: 6º C"></label>
+        <label>Ano<input id="classYear" type="number" value="2026" required></label>
+        <button class="primary" type="submit">Adicionar turma</button>
+      </form>
+    </div>
+    <div class="card"><h2>Turmas</h2><div class="notice">Cada turma é independente. Alunos, provas, cartões e resultados permanecem vinculados à turma correta.</div><div id="classList"></div></div>
+  </div>
+</section>
+
+<section id="students" class="page">
+  <div class="split">
+    <div class="card">
+      <h2>Novo aluno</h2>
+      <form id="studentForm">
+        <label>Turma<select id="studentClass" required></select></label>
+        <label>Nome<input id="studentName" required></label>
+        <button class="primary" type="submit">Adicionar aluno</button>
+      </form>
+      <hr>
+      <h3>Importar lista de alunos</h3>
+      <p class="muted"><b>Formatos aceitos:</b> TXT, CSV, PDF e Word (.docx). Se a lista for simples, deixe um nome por linha. O app também tenta reconhecer nomes em relatórios PDF com tabelas.</p>
+      <label>Turma<select id="csvClass"></select></label>
+      <input id="csvFile" type="file" accept=".csv,.txt,.pdf,.docx,text/plain,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+      <button id="importStudents" class="secondary">Ler e importar lista</button>
+      <div id="studentImportStatus" class="muted" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h2>Alunos</h2>
+      <label>Filtrar turma<select id="studentFilter"></select></label>
+      <div id="studentList"></div>
+    </div>
+  </div>
+</section>
+
+<section id="tests" class="page">
+  <div class="split">
+    <div class="card">
+      <h2>Nova prova</h2>
+      <form id="testForm">
+        <label>Nome da prova<input id="testName" required placeholder="Ex.: Geografia"></label>
+        <label>Turma<select id="testClass" required></select></label>
+        <label>Número de questões<input id="questionCount" type="number" min="1" max="20" value="5" required></label>
+        <label>Alternativas<select id="optionCount"><option value="4">A-D</option><option value="5">A-E</option></select></label>
+        <label>Arquivo da prova — PDF ou Word (opcional)<input id="testFile" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label>
+        <p class="muted" style="margin-top:-4px">O app armazena o arquivo e também lê o texto de PDF e Word (.docx).</p>
+        <button class="primary" type="submit">Criar prova</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Provas</h2>
+      <label>Mostrar turma<select id="testFilterClass"></select></label>
+      <div id="testList"></div>
+    </div>
+  </div>
+  <div id="keyCard" class="card" style="display:none">
+    <h2>Gabarito</h2>
+    <div id="keyTitle"></div>
+    <form id="keyForm"><div id="keyGrid" class="answer-grid"></div><button class="success" type="submit">Salvar gabarito</button></form>
+  </div>
+  <div id="testTextCard" class="card" style="display:none">
+    <h2>Conteúdo lido da prova</h2>
+    <div id="testTextTitle" class="muted"></div>
+    <pre id="testTextContent" style="white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:12px"></pre>
+  </div>
+</section>
+
+<section id="cards" class="page">
+  <div class="card">
+    <h2>Gerar cartões individuais</h2>
+    <div class="row">
+      <label style="min-width:220px">1. Turma<select id="cardClass"></select></label>
+      <label style="min-width:240px">2. Prova<select id="cardTest"></select></label>
+      <label style="min-width:220px">3. Tamanho de impressão<select id="cardSize"><option value="compact" selected>Reduzido (recomendado)</option><option value="normal">Normal (A4 cheio)</option><option value="micro">Menor</option></select></label>
+      <button id="generateCards" class="primary">Gerar cartões desta turma</button>
+      <button id="printCards" class="secondary">Imprimir</button>
+    </div>
+    <div id="cardClassInfo" class="notice">Escolha primeiro a turma. Depois serão mostradas somente as provas dessa turma.</div>
+    <div class="notice">Agora você pode imprimir <b>1 cartão por folha</b> em tamanho reduzido, sem precisar recortar. O motor de leitura continua o mesmo.</div>
+  </div>
+  <div id="cardPreview"></div>
+</section>
+
+<section id="correction" class="page">
+  <div class="card">
+    <h2>Correção automática</h2>
+    <div id="cvStatus" class="notice">Carregando o motor de leitura...</div>
+    <p>Abra a câmera e enquadre o cartão inteiro. O QR identifica aluno e prova; as bolhas são lidas automaticamente. Depois use <b>Salvar e próximo aluno</b> para corrigir a turma em sequência sem fechar a câmera.</p>
+    <div class="row">
+      <button id="openCam" class="primary">Abrir câmera</button>
+      <button id="stopCam" class="secondary" disabled>Parar câmera</button>
+    </div>
+    <video id="video" autoplay playsinline></video>
+    <button id="capture" class="success fab" disabled title="Ler cartão">✓</button>
+    <p><b>Ou escolha uma foto:</b></p>
+    <input id="fileInput" type="file" accept="image/*">
+    <canvas id="canvasIn" class="preview"></canvas>
+    <div id="readStatus"></div>
+  </div>
+
+  <div id="identifiedCard" class="card" style="display:none">
+    <h2>Identificação</h2>
+    <div id="identifiedInfo"></div>
+    <div id="answerKeyStrip" class="answer-key-strip" style="display:none"></div>
+    <div id="detectedAnswers" class="manual-answer-grid"></div><p class="manual-note">Se alguma leitura estiver errada, toque na alternativa correta antes de salvar.</p>
+    <div id="correctionSummary"></div>
+    <div id="correctionActions" class="row" style="display:none;margin-top:12px">
+      <button id="saveNextCorrection" class="success">Salvar e próximo aluno</button>
+      <button id="saveCorrection" class="secondary">Apenas salvar</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Diagnóstico visual</h2>
+    <canvas id="canvasWarp" class="preview"></canvas>
+  </div>
+</section>
+
+<section id="backupPage" class="page">
+  <div class="card">
+    <h2>💾 Backup e restauração</h2>
+    <div class="notice">
+      <b>Importante:</b> turmas, alunos, provas, gabaritos e resultados ficam salvos no navegador deste aparelho.
+      O backup permite recuperar essas informações se você trocar de celular/computador, mudar de navegador ou limpar os dados.
+    </div>
+
+    <div class="grid" style="margin-top:14px">
+      <div class="card" style="margin:0;box-shadow:none;border:1px solid var(--line)">
+        <h3>⬇️ Fazer backup</h3>
+        <p>Baixa um único arquivo <b>.json</b> com os dados do aplicativo. Se houver PDF/Word anexado às provas, ele também será incluído.</p>
+        <button id="exportBackupBtn" class="success" type="button">Baixar backup completo</button>
+      </div>
+
+      <div class="card" style="margin:0;box-shadow:none;border:1px solid var(--line)">
+        <h3>⬆️ Restaurar backup</h3>
+        <p>Escolha um arquivo de backup salvo anteriormente. A restauração substituirá os dados atuais deste navegador.</p>
+        <input id="backupFileInput" type="file" accept=".json,application/json">
+        <button id="restoreBackupBtn" class="primary" type="button">Restaurar backup</button>
+      </div>
+    </div>
+
+    <div id="backupStatus" style="margin-top:14px"></div>
+    <div id="lastBackupInfo" class="muted" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card">
+    <h3>O que entra no backup?</h3>
+    <p>✅ Turmas &nbsp; ✅ Alunos &nbsp; ✅ Provas &nbsp; ✅ Gabaritos &nbsp; ✅ Resultados/correções &nbsp; ✅ Arquivos PDF/Word anexados às provas</p>
+    <p class="muted">Guarde o arquivo de backup em um local seguro, como Google Drive, OneDrive, pendrive ou computador.</p>
+  </div>
+</section>
+
+<section id="resultsPage" class="page">
+  <div class="card">
+    <div class="row">
+      <h2 style="flex:1">Resultados</h2>
+      <button id="exportCsv" class="secondary">Exportar CSV</button>
+    </div>
+    <div class="row">
+      <label style="min-width:220px">Turma<select id="resultClassFilter"></select></label>
+      <label style="min-width:240px">Prova<select id="resultFilter"></select></label>
+    </div>
+    <div style="overflow:auto"><table><thead><tr><th>Aluno</th><th>Turma</th><th>Prova</th><th>Acertos</th><th>Nota</th><th>Data</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+  </div>
+</section>
+</main>
+
+<div id="printArea"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const DBKEY="corretor_provas_completo_v1";
+let state=loadState(), editingTest=null, currentRead=null, stream=null, cvReady=false;
+
+function loadState(){
+  try{return JSON.parse(localStorage.getItem(DBKEY))||{classes:[],students:[],tests:[],results:[]}}catch(e){return{classes:[],students:[],tests:[],results:[]}}
+}
+function saveState(){localStorage.setItem(DBKEY,JSON.stringify(state));renderAll()}
+function uid(p){return p+"_"+Date.now()+"_"+Math.random().toString(36).slice(2,8)}
+function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+
+document.querySelectorAll("[data-go]").forEach(btn=>btn.onclick=()=>{const target=document.querySelector(`nav button[data-page="${btn.dataset.go}"]`); if(target) target.click();});
+
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");$(b.dataset.page).classList.add("active");window.scrollTo(0,0);
+});
+
+/* IndexedDB para arquivo da prova */
+const FILEDB="corretor_provas_files";
+function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(FILEDB,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains("files"))r.result.createObjectStore("files",{keyPath:"testId"})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function saveTestFile(testId,file){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction("files","readwrite");tx.objectStore("files").put({testId,name:file.name,type:file.type,blob:file});tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
+async function getTestFileRecord(testId){const db=await openDB();return new Promise((res,rej)=>{const r=db.transaction("files","readonly").objectStore("files").get(testId);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function openTestFile(testId){const rec=await getTestFileRecord(testId);if(!rec)return alert("Arquivo não encontrado neste aparelho.");const u=URL.createObjectURL(rec.blob);window.open(u,"_blank");setTimeout(()=>URL.revokeObjectURL(u),60000)}
+window.openTestFile=openTestFile;
+
+/* Leitura de PDF / Word / TXT / CSV */
+if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"}
+function fileExt(name){return String(name||"").split(".").pop().toLowerCase()}
+async function extractPdfData(fileOrBlob){
+  if(!window.pdfjsLib)throw new Error("Leitor de PDF ainda não carregou. Aguarde alguns segundos e tente novamente.");
+  const buf=await fileOrBlob.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+  const pages=[]; const visualLines=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p); const content=await page.getTextContent();
+    const items=(content.items||[]).filter(it=>String(it.str||"").trim()).map(it=>({str:String(it.str).trim(),x:it.transform?.[4]||0,y:it.transform?.[5]||0}));
+    // text in PDF stream order
+    pages.push(items.map(i=>i.str).join(" "));
+    // visual rows grouped by Y, useful for school reports/tables
+    const sorted=items.slice().sort((a,b)=>b.y-a.y || a.x-b.x); const groups=[];
+    for(const it of sorted){let g=groups.find(x=>Math.abs(x.y-it.y)<=3.5);if(!g){g={y:it.y,items:[]};groups.push(g)}g.items.push(it)}
+    groups.sort((a,b)=>b.y-a.y).forEach(g=>{g.items.sort((a,b)=>a.x-b.x);visualLines.push(g.items.map(i=>i.str).join(" ").replace(/\s+/g," ").trim())});
+  }
+  return {text:pages.join("\n\n"),lines:visualLines};
+}
+async function extractFileText(file){
+  const ext=fileExt(file.name);
+  if(ext==="txt"||ext==="csv")return {text:await file.text(),lines:(await file.text()).split(/\r?\n/)};
+  if(ext==="pdf")return await extractPdfData(file);
+  if(ext==="docx"){
+    if(!window.mammoth)throw new Error("Leitor de Word ainda não carregou. Aguarde alguns segundos e tente novamente.");
+    const result=await mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()});
+    const txt=result.value||"";return {text:txt,lines:txt.split(/\r?\n/)};
+  }
+  throw new Error("Formato não suportado para leitura. Use TXT, CSV, PDF ou Word (.docx).")
+}
+function looksLikePersonName(s){
+  s=String(s||"").replace(/\s+/g," ").trim();
+  if(!s||s.length<5||s.length>100||/\d|@|\.gov|\.com/i.test(s))return false;
+  const blocked=/^(alunos?|nome do aluno|nome|nº|n°|chamada|ra|dig|data|nascimento|email|situação|ativo|transferido|página|filtros|ano letivo|secretaria|escolar|digital)$/i;
+  if(blocked.test(s))return false;
+  const words=s.split(" ").filter(Boolean); if(words.length<2||words.length>10)return false;
+  return words.every(w=>/^[\p{L}'’.-]+$/u.test(w));
+}
+function extractNamesFromLines(lines){
+  const clean=(lines||[]).map(x=>String(x||"").replace(/\s+/g," ").trim()).filter(Boolean);
+  const found=[];
+  // First: recognize rows such as "12 NOME COMPLETO 000123456789 ..."
+  for(let i=0;i<clean.length;i++){
+    const combo=[clean[i],clean[i+1],clean[i+2]].filter(Boolean).join(" ");
+    const m=combo.match(/^\s*\d{1,3}\s+(.+?)\s+0?\d{8,}(?:\s|$)/u);
+    if(m){const n=m[1].replace(/\s+/g," ").trim();if(looksLikePersonName(n))found.push(n)}
+  }
+  // Second: simple files with one name per line
+  if(found.length===0){
+    for(const raw of clean){
+      let s=raw.replace(/^\s*\d{1,3}[.)-]?\s+/,"").trim();
+      // one-column CSV/TXT
+      if(/[;,\t]/.test(s)){const first=s.split(/[;,\t]/)[0].trim();if(looksLikePersonName(first))s=first}
+      if(looksLikePersonName(s))found.push(s);
+    }
+  }
+  // deduplicate while preserving order
+  const seen=new Set();return found.filter(n=>{const k=n.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();if(seen.has(k))return false;seen.add(k);return true});
+}
+async function showTestText(id){
+  const t=state.tests.find(x=>x.id===id);if(!t)return;
+  let txt=t.fileText||"";
+  if(!txt){
+    const rec=await getTestFileRecord(id);if(!rec)return alert("Arquivo não encontrado neste aparelho.");
+    try{const r=await extractFileText(new File([rec.blob],rec.name,{type:rec.type||rec.blob.type}));txt=r.text||"";t.fileText=txt.slice(0,50000);saveState()}catch(err){return alert(err.message||String(err))}
+  }
+  $("testTextCard").style.display="block";$("testTextTitle").textContent=(t.fileName||t.name)+" — texto extraído";$("testTextContent").textContent=txt||"Nenhum texto reconhecido.";
+  document.querySelector('[data-page="tests"]').click();setTimeout(()=>$("testTextCard").scrollIntoView({behavior:"smooth"}),50)
+}
+window.showTestText=showTestText;
+
+/* ===== BACKUP COMPLETO ===== */
+const BACKUP_VERSION=1;
+const LAST_BACKUP_KEY="corretor_ultimo_backup";
+
+function formatDateTimeBR(iso){
+  try{return new Date(iso).toLocaleString("pt-BR")}catch(e){return iso||""}
+}
+
+function updateBackupInfo(){
+  const iso=localStorage.getItem(LAST_BACKUP_KEY);
+  const msg=iso ? "Último backup feito: "+formatDateTimeBR(iso) : "Nenhum backup registrado neste navegador.";
+  const a=$("lastBackupInfo"),b=$("lastBackupHome");
+  if(a)a.textContent=msg;
+  if(b)b.textContent=msg;
+}
+
+function readAllStoredFiles(){
+  return openDB().then(db=>new Promise((resolve,reject)=>{
+    const tx=db.transaction("files","readonly");
+    const req=tx.objectStore("files").getAll();
+    req.onsuccess=()=>resolve(req.result||[]);
+    req.onerror=()=>reject(req.error);
+  }));
+}
+
+function blobToDataURL(blob){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(reader.result);
+    reader.onerror=()=>reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function dataURLToBlob(dataURL){
+  const parts=String(dataURL).split(",");
+  if(parts.length<2)throw new Error("Arquivo anexado inválido no backup.");
+  const meta=parts[0],raw=atob(parts.slice(1).join(","));
+  const mime=(meta.match(/data:([^;]+)/)||[])[1]||"application/octet-stream";
+  const bytes=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+  return new Blob([bytes],{type:mime});
+}
+
+async function exportFullBackup(){
+  const status=$("backupStatus");
+  try{
+    status.innerHTML='<div class="notice">Preparando o backup...</div>';
+    const records=await readAllStoredFiles();
+    const files=[];
+    for(const rec of records){
+      files.push({
+        testId:rec.testId,
+        name:rec.name||"arquivo",
+        type:rec.type||rec.blob?.type||"application/octet-stream",
+        data:rec.blob ? await blobToDataURL(rec.blob) : null
+      });
+    }
+
+    const createdAt=new Date().toISOString();
+    const payload={
+      app:"Corretor de Provas",
+      backupVersion:BACKUP_VERSION,
+      createdAt,
+      data:JSON.parse(JSON.stringify(state)),
+      files
+    };
+
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    const day=createdAt.slice(0,10);
+    const time=createdAt.slice(11,19).replaceAll(":","-");
+    a.href=url;
+    a.download=`backup-corretor-provas-${day}-${time}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+
+    localStorage.setItem(LAST_BACKUP_KEY,createdAt);
+    updateBackupInfo();
+    status.innerHTML=`<div class="ok"><b>Backup criado com sucesso.</b><br>Arquivo: backup-corretor-provas-${day}-${time}.json<br>Guarde esse arquivo em um local seguro.</div>`;
+  }catch(err){
+    console.error(err);
+    status.innerHTML='<div class="warn"><b>Não foi possível criar o backup.</b><br>'+esc(err?.message||String(err))+'</div>';
+  }
+}
+
+async function replaceStoredFiles(files){
+  const db=await openDB();
+  await new Promise((resolve,reject)=>{
+    const tx=db.transaction("files","readwrite");
+    tx.objectStore("files").clear();
+    tx.oncomplete=resolve;
+    tx.onerror=()=>reject(tx.error);
+  });
+
+  for(const rec of files||[]){
+    if(!rec?.testId||!rec?.data)continue;
+    const blob=dataURLToBlob(rec.data);
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction("files","readwrite");
+      tx.objectStore("files").put({
+        testId:rec.testId,
+        name:rec.name||"arquivo",
+        type:rec.type||blob.type,
+        blob
+      });
+      tx.oncomplete=resolve;
+      tx.onerror=()=>reject(tx.error);
+    });
+  }
+}
+
+async function restoreFullBackup(){
+  const status=$("backupStatus");
+  const file=$("backupFileInput").files[0];
+  if(!file)return alert("Selecione primeiro o arquivo de backup .json.");
+
+  let payload;
+  try{
+    payload=JSON.parse(await file.text());
+  }catch(e){
+    status.innerHTML='<div class="warn"><b>Arquivo inválido.</b> Não consegui ler esse JSON.</div>';
+    return;
+  }
+
+  const restored=payload?.data;
+  if(payload?.app!=="Corretor de Provas" || !restored ||
+     !Array.isArray(restored.classes) || !Array.isArray(restored.students) ||
+     !Array.isArray(restored.tests) || !Array.isArray(restored.results)){
+    status.innerHTML='<div class="warn"><b>Esse arquivo não parece ser um backup válido do Corretor de Provas.</b></div>';
+    return;
+  }
+
+  const summary=`${restored.classes.length} turma(s), ${restored.students.length} aluno(s), ${restored.tests.length} prova(s) e ${restored.results.length} resultado(s)`;
+  if(!confirm("Restaurar este backup?\n\n"+summary+"\n\nOs dados atuais deste navegador serão substituídos."))return;
+
+  try{
+    status.innerHTML='<div class="notice">Restaurando o backup...</div>';
+    await replaceStoredFiles(Array.isArray(payload.files)?payload.files:[]);
+    state={
+      classes:restored.classes,
+      students:restored.students,
+      tests:restored.tests,
+      results:restored.results
+    };
+    localStorage.setItem(DBKEY,JSON.stringify(state));
+    saveState();
+    $("backupFileInput").value="";
+    status.innerHTML='<div class="ok"><b>Backup restaurado com sucesso.</b><br>'+esc(summary)+'.</div>';
+    alert("Backup restaurado com sucesso.");
+  }catch(err){
+    console.error(err);
+    status.innerHTML='<div class="warn"><b>Não foi possível restaurar o backup.</b><br>'+esc(err?.message||String(err))+'</div>';
+  }
+}
+
+$("exportBackupBtn").onclick=exportFullBackup;
+$("restoreBackupBtn").onclick=restoreFullBackup;
+$("goBackupBtn").onclick=()=>{
+  const btn=document.querySelector('nav button[data-page="backupPage"]');
+  if(btn)btn.click();
+};
+updateBackupInfo();
+
+/* CRUD */
+$("classForm").onsubmit=e=>{e.preventDefault();state.classes.push({id:uid("turma"),name:$("className").value.trim(),year:+$("classYear").value});e.target.reset();$("classYear").value=2026;saveState()}
+$("studentForm").onsubmit=e=>{e.preventDefault();const classId=$("studentClass").value;if(!classId)return alert("Selecione uma turma.");state.students.push({id:uid("aluno"),classId,name:$("studentName").value.trim(),code:Math.random().toString(36).slice(2,8).toUpperCase()});$("studentName").value="";saveState();$("studentFilter").value=classId;renderStudents()}
+$("studentFilter").onchange=renderStudents;
+$("importStudents").onclick=async()=>{
+  const f=$("csvFile").files[0],classId=$("csvClass").value,status=$("studentImportStatus");
+  if(!f||!classId)return alert("Selecione a turma e o arquivo.");
+  status.innerHTML="Lendo o arquivo...";
+  try{
+    const data=await extractFileText(f);
+    let rows=extractNamesFromLines(data.lines?.length?data.lines:String(data.text||"").split(/\r?\n/));
+    if(rows[0]&&/^nome$/i.test(rows[0]))rows=rows.slice(1);
+    if(!rows.length){status.innerHTML='<span style="color:#b91c1c"><b>Nenhum nome foi identificado.</b> Se for uma lista simples, deixe um nome por linha. Em PDF, use um arquivo com texto selecionável (não apenas uma foto escaneada).</span>';return}
+    const existing=new Set(state.students.filter(s=>s.classId===classId).map(s=>s.name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()));
+    let added=0,duplicates=0;
+    for(const name of rows){const k=name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();if(existing.has(k)){duplicates++;continue}existing.add(k);state.students.push({id:uid("aluno"),classId,name,code:Math.random().toString(36).slice(2,8).toUpperCase()});added++}
+    $("csvFile").value="";const cls=state.classes.find(c=>c.id===classId);saveState();$("studentFilter").value=classId;renderStudents();
+    status.innerHTML=`<span style="color:#166534"><b>${added} aluno(s) importado(s)</b> para ${esc(cls?.name||"")}.${duplicates?` ${duplicates} duplicado(s) ignorado(s).`:""}</span>`;
+  }catch(err){console.error(err);status.innerHTML='<span style="color:#b91c1c"><b>Não foi possível ler o arquivo:</b> '+esc(err.message||String(err))+'</span>'}
+}
+
+$("testForm").onsubmit=async e=>{
+  e.preventDefault();
+  if(!$("testClass").value)return alert("Selecione a turma.");
+  const q=+$("questionCount").value,o=+$("optionCount").value,f=$("testFile").files[0];
+  let fileText="";
+  if(f){
+    try{const extracted=await extractFileText(f);fileText=(extracted.text||"").slice(0,50000)}catch(err){console.warn("Arquivo anexado, mas texto não extraído:",err)}
+  }
+  const t={id:uid("prova"),name:$("testName").value.trim(),classId:$("testClass").value,questionCount:q,optionCount:o,answerKey:Array(q).fill(""),fileName:f?f.name:"",fileText};
+  if(f)await saveTestFile(t.id,f);
+  state.tests.push(t);editingTest=t.id;saveState();openKey(t.id);
+}
+$("keyForm").onsubmit=e=>{e.preventDefault();const t=state.tests.find(x=>x.id===editingTest);const arr=[];for(let i=0;i<t.questionCount;i++){const r=document.querySelector(`input[name="key${i}"]:checked`);arr.push(r?r.value:"")}if(arr.some(x=>!x))return alert("Preencha todo o gabarito.");t.answerKey=arr;saveState();alert("Gabarito salvo.")}
+
+function openKey(id){
+  editingTest=id;const t=state.tests.find(x=>x.id===id);if(!t)return;
+  $("keyCard").style.display="block";$("keyTitle").innerHTML=`<p><b>${esc(t.name)}</b> — ${t.questionCount} questões</p>`;
+  const letters=["A","B","C","D","E"].slice(0,t.optionCount);
+  $("keyGrid").innerHTML=Array.from({length:t.questionCount},(_,i)=>`<div class="qbox"><b>Questão ${i+1}</b><div class="opts">${letters.map(l=>`<label><input type="radio" name="key${i}" value="${l}" ${t.answerKey[i]===l?"checked":""}> ${l}</label>`).join("")}</div></div>`).join("");
+  document.querySelector('[data-page="tests"]').click();setTimeout(()=>$("keyCard").scrollIntoView({behavior:"smooth"}),50)
+}
+window.openKey=openKey;
+function delClass(id){if(!confirm("ATENÇÃO: deseja excluir esta turma? Somente os alunos e provas vinculados a ESTA turma serão excluídos. As outras turmas serão mantidas."))return;state.classes=state.classes.filter(x=>x.id!==id);state.students=state.students.filter(x=>x.classId!==id);state.tests=state.tests.filter(x=>x.classId!==id);saveState()}
+function delStudent(id){state.students=state.students.filter(x=>x.id!==id);saveState()}
+function delTest(id){state.tests=state.tests.filter(x=>x.id!==id);saveState()}
+window.delClass=delClass;window.delStudent=delStudent;window.delTest=delTest;
+
+/* Render */
+function fillSelect(id,arr,label){const s=$(id),v=s.value;s.innerHTML=`<option value="">${label}</option>`+arr.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");if([...s.options].some(o=>o.value===v))s.value=v}
+function renderClasses(){
+  const arr=state.classes.slice().sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+  $("classList").innerHTML=arr.length?arr.map(c=>{
+    const nStudents=state.students.filter(s=>s.classId===c.id).length;
+    const nTests=state.tests.filter(t=>t.classId===c.id).length;
+    return `<div class="item"><div><b>${esc(c.name)}</b><small>${c.year} • ${nStudents} aluno(s) • ${nTests} prova(s)</small></div><button class="danger" onclick="delClass('${c.id}')">Excluir</button></div>`;
+  }).join(""):'<p class="muted">Nenhuma turma.</p>';
+}
+function renderStudents(){const f=$("studentFilter").value,arr=(f?state.students.filter(x=>x.classId===f):state.students).slice().sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));$("studentList").innerHTML=arr.length?arr.map(s=>{const c=state.classes.find(x=>x.id===s.classId);return`<div class="item"><div><b>${esc(s.name)}</b><small>${esc(c?.name||"")} • ${esc(s.code)}</small></div><button class="danger" onclick="delStudent('${s.id}')">Excluir</button></div>`}).join(""):'<p class="muted">Nenhum aluno.</p>'}
+function renderTests(){
+  const classId=$("testFilterClass")?.value||"";
+  const arr=(classId?state.tests.filter(t=>t.classId===classId):state.tests).slice();
+  $("testList").innerHTML=arr.length?arr.map(t=>{const c=state.classes.find(x=>x.id===t.classId),ok=t.answerKey.every(Boolean);return`<div class="item"><div><b>${esc(t.name)}</b><small><b>Turma: ${esc(c?.name||"Sem turma")}</b> • ${t.questionCount} questões • <span class="badge ${ok?"okb":"warnb"}">${ok?"Gabarito pronto":"Gabarito pendente"}</span>${t.fileName?` • 📎 ${esc(t.fileName)}`:""}</small></div><div class="actions">${t.fileName?`<button class="secondary" onclick="openTestFile('${t.id}')">Abrir arquivo</button><button class="secondary" onclick="showTestText('${t.id}')">Ler conteúdo</button>`:""}<button class="primary" onclick="openKey('${t.id}')">Gabarito</button><button class="danger" onclick="delTest('${t.id}')">Excluir</button></div></div>`}).join(""):'<p class="muted">Nenhuma prova nesta turma.</p>';
+}
+$("testFilterClass").onchange=renderTests;
+
+function updateCardTests(){
+  const classId=$("cardClass").value;
+  const current=$("cardTest").value;
+  const tests=classId?state.tests.filter(t=>t.classId===classId):[];
+  fillSelect("cardTest",tests,classId?"Selecione a prova":"Escolha a turma primeiro");
+  if(current && tests.some(t=>t.id===current)) $("cardTest").value=current;
+  const cls=state.classes.find(c=>c.id===classId);
+  const count=classId?state.students.filter(s=>s.classId===classId).length:0;
+  $("cardClassInfo").innerHTML=classId
+    ? `<b>${esc(cls?.name||"")}</b>: ${count} aluno(s) • ${tests.length} prova(s). Os cartões gerados serão somente desta turma.`
+    : `Escolha primeiro a turma. Depois serão mostradas somente as provas dessa turma.`;
+  $("cardPreview").innerHTML="";
+  $("printArea").innerHTML="";
+}
+$("cardClass").onchange=updateCardTests;
+
+function updateResultTests(){
+  const classId=$("resultClassFilter")?.value||"";
+  const current=$("resultFilter").value;
+  const tests=classId?state.tests.filter(t=>t.classId===classId):state.tests;
+  fillSelect("resultFilter",tests,classId?"Todas as provas desta turma":"Todas as provas");
+  if(current && tests.some(t=>t.id===current)) $("resultFilter").value=current;
+  renderResults();
+}
+$("resultClassFilter").onchange=updateResultTests;
+function renderResults(){
+  const classId=$("resultClassFilter")?.value||"";
+  const testId=$("resultFilter").value;
+  let arr=state.results.slice();
+  if(classId){
+    const studentIds=new Set(state.students.filter(s=>s.classId===classId).map(s=>s.id));
+    arr=arr.filter(r=>studentIds.has(r.studentId));
+  }
+  if(testId)arr=arr.filter(r=>r.testId===testId);
+  arr=arr.reverse();
+  $("resultsBody").innerHTML=arr.length?arr.map(r=>{const s=state.students.find(x=>x.id===r.studentId),t=state.tests.find(x=>x.id===r.testId),c=state.classes.find(x=>x.id===s?.classId);return`<tr><td>${esc(s?.name||"")}</td><td>${esc(c?.name||"")}</td><td>${esc(t?.name||"")}</td><td>${r.hits}/${r.total}</td><td>${Number(r.score).toFixed(1)}</td><td>${new Date(r.date).toLocaleString("pt-BR")}</td></tr>`}).join(""):'<tr><td colspan="6" class="muted">Nenhum resultado para este filtro.</td></tr>';
+}
+$("resultFilter").onchange=renderResults;
+function renderAll(){
+  $("stClasses").textContent=state.classes.length;$("stStudents").textContent=state.students.length;$("stTests").textContent=state.tests.length;$("stResults").textContent=state.results.length;
+  renderClasses();
+  fillSelect("studentClass",state.classes,"Selecione");
+  fillSelect("csvClass",state.classes,"Selecione");
+  fillSelect("studentFilter",state.classes,"Todas");
+  fillSelect("testClass",state.classes,"Selecione");
+  fillSelect("testFilterClass",state.classes,"Todas as turmas");
+  fillSelect("cardClass",state.classes,"Selecione a turma");
+  fillSelect("resultClassFilter",state.classes,"Todas as turmas");
+  updateCardTests();
+  updateResultTests();
+  renderStudents();renderTests();renderResults();
+}
+renderAll();
+
+/* ===== MOTOR OMR VALIDADO ===== */
+const CARD_W=1000,CARD_H=1400;
+const MARKERS=[{x:55,y:55,w:80,h:80},{x:865,y:55,w:80,h:80},{x:55,y:1265,w:80,h:80},{x:865,y:1265,w:80,h:80}];
+const MARKER_CENTERS=[[95,95],[905,95],[95,1305],[905,1305]];
+function geometryFor(qCount,optCount){
+  // mesma área e distribuição do teste validado; generalizada até 20 questões
+  const xs=optCount===4?[335,500,665,830]:[280,420,560,700,840];
+  const top=500,bottom=1210,rowH=(bottom-top)/qCount;
+  const ys=Array.from({length:qCount},(_,i)=>top+rowH*(i+.5));
+  return{xs,ys};
+}
+function cardSVG(test,student,cls,sizeMode="compact"){
+  const letters=["A","B","C","D","E"].slice(0,test.optionCount),g=geometryFor(test.questionCount,test.optionCount);
+  const rows=g.ys.map((y,qi)=>{
+    const opts=g.xs.map((x,j)=>`<text x="${x}" y="${y-47}" text-anchor="middle" font-size="30" font-weight="700" font-family="Arial">${letters[j]}</text><circle cx="${x}" cy="${y}" r="32" fill="white" stroke="black" stroke-width="5"/>`).join("");
+    return`<text x="185" y="${y+10}" text-anchor="middle" font-size="34" font-weight="700" font-family="Arial">${String(qi+1).padStart(2,"0")}</text>${opts}`;
+  }).join("");
+  const payload=JSON.stringify({v:1,testId:test.id,studentId:student.id});
+  const qrId="qrsvg_"+student.id+"_"+test.id;
+  return `<div class="print-page ${sizeMode}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CARD_W} ${CARD_H}">
+    <rect x="25" y="25" width="950" height="1350" fill="white" stroke="black" stroke-width="4"/>
+    ${MARKERS.map(m=>`<rect x="${m.x}" y="${m.y}" width="${m.w}" height="${m.h}" fill="black"/>`).join("")}
+    <text x="160" y="180" font-size="42" font-weight="700" font-family="Arial">${esc(test.name)}</text>
+    <text x="160" y="232" font-size="24" font-family="Arial"><tspan font-weight="700">Aluno:</tspan> ${esc(student.name)}</text>
+    <text x="160" y="270" font-size="23" font-family="Arial"><tspan font-weight="700">Turma:</tspan> ${esc(cls?.name||"")}</text>
+    <foreignObject x="715" y="145" width="190" height="190"><div xmlns="http://www.w3.org/1999/xhtml" id="${qrId}" data-qr='${esc(payload)}' style="width:180px;height:180px;background:white"></div></foreignObject>
+    <text x="160" y="320" font-size="20" font-family="Arial">Preencha totalmente UMA bolha por questão.</text>
+    <line x1="150" y1="390" x2="850" y2="390" stroke="black" stroke-width="4"/>
+    ${rows}
+  </svg></div>`;
+}
+$("generateCards").onclick=()=>{
+  const classId=$("cardClass").value;
+  if(!classId)return alert("Escolha primeiro a turma.");
+  const t=state.tests.find(x=>x.id===$("cardTest").value);
+  if(!t)return alert("Selecione uma prova desta turma.");
+  if(t.classId!==classId)return alert("Essa prova não pertence à turma selecionada.");
+  if(!t.answerKey.every(Boolean))return alert("Complete o gabarito desta prova.");
+  const cls=state.classes.find(x=>x.id===classId);
+  const students=state.students.filter(x=>x.classId===classId).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+  if(!students.length)return alert("Não há alunos cadastrados nesta turma.");
+  const sizeMode=$("cardSize")?.value||"compact";
+  const html=students.map(s=>cardSVG(t,s,cls,sizeMode)).join("");
+  $("printArea").innerHTML=html;$("cardPreview").innerHTML=html;
+  document.querySelectorAll("[data-qr]").forEach(el=>{el.innerHTML="";new QRCode(el,{text:el.dataset.qr,width:180,height:180,correctLevel:QRCode.CorrectLevel.M})});
+  $("cardClassInfo").innerHTML=`<b>${esc(cls?.name||"")}</b>: ${students.length} cartão(ões) gerado(s) para a prova <b>${esc(t.name)}</b>.`;
+}
+$("printCards").onclick=()=>window.print();
+
+/* OpenCV */
+function waitCv(){if(window.cv&&cv.Mat){cvReady=true;$("cvHome").className="ok";$("cvHome").innerHTML="<b>Motor de leitura pronto.</b>";$("cvStatus").className="ok";$("cvStatus").innerHTML="<b>Motor de leitura pronto.</b>"}else setTimeout(waitCv,250)}waitCv();
+
+$("openCam").onclick=async()=>{try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false});$("video").srcObject=stream;$("video").style.display="block";$("openCam").disabled=true;$("stopCam").disabled=false;$("capture").disabled=false;$("capture").classList.add("show");await $("video").play()}catch(e){alert("Não foi possível abrir a câmera.")}}
+$("stopCam").onclick=()=>{if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$("video").srcObject=null;$("video").style.display="none";$("openCam").disabled=false;$("stopCam").disabled=true;$("capture").disabled=true;$("capture").classList.remove("show")}
+$("capture").onclick=()=>{const v=$("video");if(v.readyState<2)return;const c=$("canvasIn");c.width=v.videoWidth;c.height=v.videoHeight;c.getContext("2d").drawImage(v,0,0);c.style.display="block";processCanvas(c)}
+$("fileInput").onchange=e=>{const f=e.target.files[0];if(!f)return;const img=new Image();img.onload=()=>{const c=$("canvasIn"),max=1800,scale=Math.min(1,max/img.naturalWidth);c.width=Math.round(img.naturalWidth*scale);c.height=Math.round(img.naturalHeight*scale);c.getContext("2d").drawImage(img,0,0,c.width,c.height);c.style.display="block";processCanvas(c);URL.revokeObjectURL(img.src)};img.src=URL.createObjectURL(f)}
+
+function findMarkers(gray){
+  const thr=new cv.Mat();cv.threshold(gray,thr,0,255,cv.THRESH_BINARY_INV+cv.THRESH_OTSU);
+  const contours=new cv.MatVector(),hier=new cv.Mat();cv.findContours(thr,contours,hier,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE);
+  const minDim=Math.min(gray.cols,gray.rows),cand=[];
+  for(let i=0;i<contours.size();i++){const cnt=contours.get(i),area=cv.contourArea(cnt),r=cv.boundingRect(cnt),ar=r.width/r.height,fill=area/(r.width*r.height),size=Math.max(r.width,r.height);if(ar>.76&&ar<1.24&&fill>.72&&size>minDim*.035&&size<minDim*.16)cand.push({x:r.x+r.width/2,y:r.y+r.height/2,area});cnt.delete()}
+  contours.delete();hier.delete();thr.delete();if(cand.length<4)return null;
+  const tops=cand.sort((a,b)=>b.area-a.area).slice(0,14),W=gray.cols,H=gray.rows,tests=[p=>p.x<W*.5&&p.y<H*.5,p=>p.x>=W*.5&&p.y<H*.5,p=>p.x>=W*.5&&p.y>=H*.5,p=>p.x<W*.5&&p.y>=H*.5],chosen=[];
+  for(const fn of tests){const a=tops.filter(fn);if(!a.length)return null;chosen.push(a.sort((x,y)=>y.area-x.area)[0])}
+  return chosen;
+}
+function warpFromMarkers(src,m){const sp=cv.matFromArray(4,1,cv.CV_32FC2,[m[0].x,m[0].y,m[1].x,m[1].y,m[2].x,m[2].y,m[3].x,m[3].y]);const dp=cv.matFromArray(4,1,cv.CV_32FC2,[95,95,905,95,905,1305,95,1305]);const M=cv.getPerspectiveTransform(sp,dp),dst=new cv.Mat();cv.warpPerspective(src,dst,M,new cv.Size(CARD_W,CARD_H),cv.INTER_LINEAR,cv.BORDER_CONSTANT,new cv.Scalar(255,255,255,255));sp.delete();dp.delete();M.delete();return dst}
+function bubbleScore(rgba,cx,cy){const d=rgba.data,w=rgba.cols,h=rgba.rows;let n=0,dark=0,blue=0,sumY=0,rn=0,ringY=0;const rIn=20,r1=38,r2=50;for(let y=Math.max(0,cy-r2);y<=Math.min(h-1,cy+r2);y++)for(let x=Math.max(0,cx-r2);x<=Math.min(w-1,cx+r2);x++){const dx=x-cx,dy=y-cy,d2=dx*dx+dy*dy,idx=(y*w+x)*4,R=d[idx],G=d[idx+1],B=d[idx+2],Y=.299*R+.587*G+.114*B;if(d2<=rIn*rIn){n++;sumY+=Y;if(Y<175)dark++;const mx=Math.max(R,G,B),mn=Math.min(R,G,B),sat=mx?(mx-mn)/mx:0;if(B>R*1.10&&B>G*.90&&sat>.22&&R<200)blue++}else if(d2>=r1*r1&&d2<=r2*r2){rn++;ringY+=Y}}const avg=n?sumY/n:255,sur=rn?ringY/rn:255,dr=n?dark/n:0,br=n?blue/n:0,contrast=Math.max(0,sur-avg)/100;return{score:.75*dr+1.45*br+.85*contrast}}
+function detectAnswers(warp,test){const g=geometryFor(test.questionCount,test.optionCount),letters=["A","B","C","D","E"].slice(0,test.optionCount),answers=[],detail=[];for(let q=0;q<test.questionCount;q++){const vals=g.xs.map(x=>bubbleScore(warp,x,g.ys[q]).score),rank=vals.map((v,i)=>({i,v})).sort((a,b)=>b.v-a.v),best=rank[0],second=rank[1],gap=best.v-second.v;let ans="";if(best.v>.38&&gap>.11)ans=letters[best.i];else if(best.v>.28&&gap>.075)ans=letters[best.i];answers.push(ans);detail.push({q:q+1,scores:vals.map(v=>+v.toFixed(3)),gap:+gap.toFixed(3)})}return{answers,detail}}
+function drawDiagnostics(warp,test,answers){const g=geometryFor(test.questionCount,test.optionCount),letters=["A","B","C","D","E"].slice(0,test.optionCount),diag=warp.clone();for(let q=0;q<test.questionCount;q++)for(let j=0;j<test.optionCount;j++){const chosen=answers[q]===letters[j],color=chosen?new cv.Scalar(0,190,0,255):new cv.Scalar(220,80,0,255);cv.circle(diag,new cv.Point(g.xs[j],g.ys[q]),38,color,chosen?6:2)}cv.imshow("canvasWarp",diag);$("canvasWarp").style.display="block";diag.delete()}
+
+async function decodeQR(canvas){
+  if(!("BarcodeDetector" in window))return null;
+  try{const d=new BarcodeDetector({formats:["qr_code"]}),codes=await d.detect(canvas);if(!codes.length)return null;return JSON.parse(codes[0].rawValue)}catch(e){return null}
+}
+function recalcCurrentRead(){
+  if(!currentRead)return;
+  const {test}=currentRead;
+  const hits=currentRead.answers.reduce((n,a,i)=>n+(a===test.answerKey[i]?1:0),0);
+  currentRead.hits=hits;
+  currentRead.score=hits/test.questionCount*10;
+  const detected=currentRead.answers.filter(Boolean).length;
+  $("correctionSummary").innerHTML=`<div class="${detected===test.questionCount?"ok":"warn"}"><b>Respondidas:</b> ${detected}/${test.questionCount}<br><b>Acertos:</b> ${hits}/${test.questionCount}<br><b>Nota:</b> ${currentRead.score.toFixed(1)}${detected<test.questionCount?"<br><b>Complete manualmente as questões em branco antes de salvar.</b>":""}</div>`;
+}
+
+function renderEditableAnswers(){
+  if(!currentRead)return;
+  const {test,answers}=currentRead;
+  const letters=["A","B","C","D","E"].slice(0,test.optionCount);
+  $("answerKeyStrip").style.display="flex";
+  $("answerKeyStrip").innerHTML=`<b>Gabarito:</b>`+test.answerKey.map((a,i)=>`<span class="answer-key-chip">${i+1}-${a}</span>`).join("");
+  $("detectedAnswers").innerHTML=answers.map((ans,i)=>`<div class="manual-q"><div class="manual-q-head"><b>Questão ${i+1}</b><span class="correct-mini">Correta: ${test.answerKey[i]}</span></div><div class="manual-options">${letters.map(l=>`<button type="button" class="manual-opt ${ans===l?"selected":""} ${!ans?"unknown":""}" data-q="${i}" data-a="${l}">${l}</button>`).join("")}</div></div>`).join("");
+  $("detectedAnswers").querySelectorAll(".manual-opt").forEach(btn=>btn.onclick=()=>{
+    const q=+btn.dataset.q,a=btn.dataset.a;
+    currentRead.answers[q]=a;
+    renderEditableAnswers();
+    recalcCurrentRead();
+    $("correctionActions").style.display="flex";
+  });
+}
+
+async function processCanvas(canvas){
+  if(!cvReady){alert("Motor ainda carregando.");return}
+  $("readStatus").innerHTML='<div class="notice">Identificando aluno e lendo respostas...</div>';
+  const qr=await decodeQR(canvas);
+  if(!qr?.testId||!qr?.studentId){$("readStatus").innerHTML='<div class="warn"><b>Não consegui ler o QR.</b> Aproxime um pouco ou use uma foto mais nítida.</div>';return}
+  const test=state.tests.find(x=>x.id===qr.testId),student=state.students.find(x=>x.id===qr.studentId);
+  if(!test||!student){$("readStatus").innerHTML='<div class="warn">QR válido, mas aluno/prova não existem neste navegador.</div>';return}
+  let src=null,gray=null,warp=null;
+  try{
+    src=cv.imread(canvas);gray=new cv.Mat();cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);const markers=findMarkers(gray);if(!markers){$("readStatus").innerHTML='<div class="warn">Não encontrei os 4 marcadores pretos.</div>';return}
+    warp=warpFromMarkers(src,markers);const out=detectAnswers(warp,test);drawDiagnostics(warp,test,out.answers);
+    const hits=out.answers.reduce((n,a,i)=>n+(a===test.answerKey[i]?1:0),0),score=hits/test.questionCount*10;
+    currentRead={test,student,answers:out.answers,hits,score,detail:out.detail};
+    const cls=state.classes.find(x=>x.id===student.classId);
+    $("identifiedCard").style.display="block";$("identifiedInfo").innerHTML=`<p><b>Aluno:</b> ${esc(student.name)}<br><b>Turma:</b> ${esc(cls?.name||"")}<br><b>Prova:</b> ${esc(test.name)}</p>`;
+    renderEditableAnswers();
+    recalcCurrentRead();
+    $("correctionActions").style.display="flex";
+    $("readStatus").innerHTML='<div class="ok"><b>Leitura concluída.</b></div>';
+    $("identifiedCard").scrollIntoView({behavior:"smooth"});
+  }finally{if(src)src.delete();if(gray)gray.delete();if(warp)warp.delete()}
+}
+function persistCurrentResult(){
+  if(!currentRead)return false;
+  if(currentRead.answers.some(a=>!a)){alert("Complete manualmente todas as questões antes de salvar.");return false;}
+  state.results=state.results.filter(r=>!(r.testId===currentRead.test.id&&r.studentId===currentRead.student.id));
+  state.results.push({
+    id:uid("res"),testId:currentRead.test.id,studentId:currentRead.student.id,
+    answers:currentRead.answers,hits:currentRead.hits,total:currentRead.test.questionCount,
+    score:+currentRead.score.toFixed(2),date:new Date().toISOString()
+  });
+  saveState();
+  return true;
+}
+
+function resetForNextStudent(){
+  currentRead=null;
+  if($("answerKeyStrip")){ $("answerKeyStrip").innerHTML=""; $("answerKeyStrip").style.display="none"; }
+  $("identifiedCard").style.display="none";
+  $("identifiedInfo").innerHTML="";
+  $("detectedAnswers").innerHTML="";
+  $("correctionSummary").innerHTML="";
+  $("correctionActions").style.display="none";
+  $("readStatus").innerHTML='<div class="notice"><b>Pronto para o próximo aluno.</b> Enquadre o próximo cartão e toque no ✓ verde.</div>';
+  const cin=$("canvasIn");
+  const cwarp=$("canvasWarp");
+  cin.style.display="none";
+  cwarp.style.display="none";
+  const ctx1=cin.getContext("2d"); if(cin.width&&cin.height)ctx1.clearRect(0,0,cin.width,cin.height);
+  const ctx2=cwarp.getContext("2d"); if(cwarp.width&&cwarp.height)ctx2.clearRect(0,0,cwarp.width,cwarp.height);
+  $("fileInput").value="";
+  if(stream){
+    $("video").style.display="block";
+    $("capture").disabled=false;
+    $("capture").classList.add("show");
+    $("video").scrollIntoView({behavior:"smooth",block:"center"});
+  }else{
+    $("openCam").scrollIntoView({behavior:"smooth",block:"center"});
+  }
+}
+
+$("saveCorrection").onclick=()=>{
+  if(!persistCurrentResult())return;
+  $("correctionActions").style.display="none";
+  $("correctionSummary").innerHTML+='<div class="ok"><b>Resultado salvo.</b></div>';
+};
+
+$("saveNextCorrection").onclick=()=>{
+  if(!persistCurrentResult())return;
+  resetForNextStudent();
+};
+
+$("exportCsv").onclick=()=>{if(!state.results.length)return alert("Sem resultados.");let csv="Aluno,Turma,Prova,Acertos,Total,Nota,Data\n";state.results.forEach(r=>{const s=state.students.find(x=>x.id===r.studentId),t=state.tests.find(x=>x.id===r.testId),c=state.classes.find(x=>x.id===s?.classId);csv+=`"${(s?.name||"").replaceAll('"','""')}","${(c?.name||"").replaceAll('"','""')}","${(t?.name||"").replaceAll('"','""')}",${r.hits},${r.total},${r.score},"${new Date(r.date).toLocaleString("pt-BR")}"\n`});const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download="resultados_provas.csv";a.click();URL.revokeObjectURL(u)}
+
+/* ===== INSTALAÇÃO PWA ===== */
+let deferredInstallPrompt=null;
+const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+function showInstallOverlay(){
+  if(isStandalone()) return;
+  const ov=$("installOverlay");
+  if(ov) ov.classList.add("show");
+}
+function hideInstallOverlay(){const ov=$("installOverlay");if(ov)ov.classList.remove("show");}
+function fallbackInstallHelp(){
+  const h=$("installHelp");
+  h.style.display="block";
+  h.innerHTML='<b>Se a janela de instalação não aparecer:</b><br>No Chrome/Brave, toque no menu ⋮ e escolha <b>Adicionar à tela inicial</b> ou <b>Instalar aplicativo</b>.';
+}
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();
+  deferredInstallPrompt=e;
+  if(!isStandalone()) $("headerInstallBtn").style.display="inline-block";
+});
+window.addEventListener('appinstalled',()=>{
+  deferredInstallPrompt=null;
+  localStorage.setItem('corretor_pwa_instalado','1');
+  hideInstallOverlay();
+  $("headerInstallBtn").style.display="none";
+});
+async function requestInstall(){
+  if(isStandalone()){hideInstallOverlay();return;}
+  if(deferredInstallPrompt){
+    deferredInstallPrompt.prompt();
+    const choice=await deferredInstallPrompt.userChoice;
+    if(choice.outcome==='accepted'){localStorage.setItem('corretor_pwa_instalado','1');hideInstallOverlay();}
+    deferredInstallPrompt=null;
+  }else{
+    fallbackInstallHelp();
+  }
+}
+$("installNowBtn").onclick=requestInstall;
+$("headerInstallBtn").onclick=()=>{showInstallOverlay();requestInstall();};
+$("installLaterBtn").onclick=()=>{localStorage.setItem('corretor_install_intro_seen','1');hideInstallOverlay();};
+window.addEventListener('load',()=>{
+  if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+  if(!isStandalone() && localStorage.getItem('corretor_install_intro_seen')!=='1' && localStorage.getItem('corretor_pwa_instalado')!=='1'){
+    setTimeout(showInstallOverlay,700);
+  }
+});
+</script>
+</body>
+</html>

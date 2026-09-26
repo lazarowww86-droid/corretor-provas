@@ -1,0 +1,12 @@
+CORRETOR DE PROVAS — PDF E WORD
+
+Novidades desta versão:
+- Lista de alunos: aceita TXT, CSV, PDF e Word (.docx).
+- PDF com tabela: o aplicativo tenta reconhecer automaticamente os nomes dos alunos.
+- Word: use formato .docx.
+- Provas: aceita PDF e Word (.docx), guarda o arquivo e extrai o texto.
+- Na aba Provas, use “Abrir arquivo” para ver o original ou “Ler conteúdo” para ver o texto extraído.
+- Turmas continuam separadas e independentes.
+- O banco local continua o mesmo; os dados existentes são preservados.
+
+No GitHub, substitua os arquivos do pacote.
