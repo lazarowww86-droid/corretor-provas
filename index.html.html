@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f172a">
+<title>Corretor de Provas</title>
+<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{
+  --bg:#eef3f8;--panel:#fff;--ink:#102033;--muted:#64748b;--line:#dbe3ec;
+  --blue:#2563eb;--green:#15803d;--red:#b91c1c;--orange:#c2410c;--dark:#0f172a
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--dark);color:#fff;padding:18px 20px}
+header h1{margin:0 0 5px;font-size:25px} header p{margin:0;color:#cbd5e1}
+nav{display:flex;gap:7px;overflow:auto;padding:10px 12px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50}
+nav button{border:1px solid var(--line);background:#fff;color:var(--ink);padding:10px 13px;border-radius:10px;font-weight:700;white-space:nowrap}
+nav button.active{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
+main{max-width:1180px;margin:auto;padding:15px}
+.page{display:none}.page.active{display:block}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px;box-shadow:0 4px 15px rgba(15,23,42,.05)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.split{display:grid;grid-template-columns:1fr 1.3fr;gap:14px}
+.stat strong{display:block;font-size:34px;margin-top:6px}.stat span{color:var(--muted)}
+label{display:block;font-weight:700;margin:11px 0}
+input,select{width:100%;padding:10px 11px;margin-top:6px;border:1px solid #cbd5e1;border-radius:9px;background:#fff}
+button{cursor:pointer}
+.primary,.secondary,.success,.danger{border:0;border-radius:10px;padding:10px 14px;font-weight:700;color:#fff}
+.primary{background:var(--blue)}.secondary{background:#475569}.success{background:var(--green)}.danger{background:var(--red)}
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:end}
+.item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}.item small{display:block;color:var(--muted);margin-top:3px}
+.actions{display:flex;gap:6px;flex-wrap:wrap}.muted{color:var(--muted)}
+.notice,.ok,.warn{padding:12px;border-radius:11px;margin:10px 0}
+.notice{background:#eff6ff;border:1px solid #bfdbfe}.ok{background:#f0fdf4;border:1px solid #bbf7d0}.warn{background:#fff7ed;border:1px solid #fed7aa}
+.answer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:9px}
+.qbox{border:1px solid var(--line);border-radius:11px;padding:10px}
+.opts{display:flex;gap:9px;flex-wrap:wrap;margin-top:7px}.opts label{margin:0;font-weight:500;display:flex;align-items:center;gap:3px}.opts input{width:auto;margin:0}
+.badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:700}
+.badge.okb{background:#dcfce7;color:#166534}.badge.warnb{background:#fef3c7;color:#92400e}
+table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid var(--line);padding:8px;text-align:left;font-size:14px}
+th{background:#f8fafc}
+#video{width:100%;max-width:650px;background:#000;border-radius:12px;display:none}
+.preview{display:none;width:100%;max-width:650px;border:1px solid #cbd5e1;border-radius:12px;margin-top:10px}
+.result-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.res{border:1px solid #cbd5e1;border-radius:10px;padding:9px;text-align:center}.res strong{display:block;font-size:26px}
+#capture.fab{position:fixed;right:18px;bottom:92px;width:64px;height:64px;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:26px;padding:0;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.28);border:3px solid white}
+#capture.fab.show{display:flex}
+.sheet-preview{max-width:640px;margin:10px auto;background:#fff;border:1px solid #cbd5e1}.sheet-preview svg{display:block;width:100%;height:auto}
+#printArea{display:none}
+@media(max-width:800px){.split{grid-template-columns:1fr}main{padding:10px}.result-grid{grid-template-columns:repeat(5,1fr)}}
+@media print{
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block!important}
+  @page{size:A4;margin:10mm}
+  .print-page{width:190mm;height:277mm;display:flex;align-items:flex-start;justify-content:center;padding-top:8mm;page-break-after:always}
+  .print-page svg{height:auto;display:block}
+  .print-page.normal svg{width:178mm}
+  .print-page.compact svg{width:118mm}
+  .print-page.micro svg{width:100mm}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Corretor de Provas</h1>
+  <p>Leitura automática de cartão-resposta por câmera</p>
+</header>
+
+<nav>
+  <button data-page="home" class="active">Início</button>
+  <button data-page="classes">Turmas</button>
+  <button data-page="students">Alunos</button>
+  <button data-page="tests">Provas</button>
+  <button data-page="cards">Cartões</button>
+  <button data-page="correction">Correção</button>
+  <button data-page="resultsPage">Resultados</button>
+</nav>
+
+<main>
+<section id="home" class="page active">
+  <div class="grid">
+    <div class="card stat"><span>Turmas</span><strong id="stClasses">0</strong></div>
+    <div class="card stat"><span>Alunos</span><strong id="stStudents">0</strong></div>
+    <div class="card stat"><span>Provas</span><strong id="stTests">0</strong></div>
+    <div class="card stat"><span>Correções</span><strong id="stResults">0</strong></div>
+  </div>
+  <div class="card">
+    <h2>Fluxo</h2>
+    <p>Cadastre a turma → alunos → prova → gabarito → gere os cartões → leia pela câmera → nota salva automaticamente.</p>
+    <div id="cvHome" class="notice">Carregando o motor de leitura...</div>
+  </div>
+</section>
+
+<section id="classes" class="page">
+  <div class="split">
+    <div class="card">
+      <h2>Nova turma</h2>
+      <form id="classForm">
+        <label>Nome<input id="className" required placeholder="Ex.: 6º C"></label>
+        <label>Ano<input id="classYear" type="number" value="2026" required></label>
+        <button class="primary" type="submit">Adicionar turma</button>
+      </form>
+    </div>
+    <div class="card"><h2>Turmas</h2><div id="classList"></div></div>
+  </div>
+</section>
+
+<section id="students" class="page">
+  <div class="split">
+    <div class="card">
+      <h2>Novo aluno</h2>
+      <form id="studentForm">
+        <label>Turma<select id="studentClass" required></select></label>
+        <label>Nome<input id="studentName" required></label>
+        <button class="primary" type="submit">Adicionar aluno</button>
+      </form>
+      <hr>
+      <h3>Importar CSV/TXT</h3>
+      <p class="muted">Um nome por linha.</p>
+      <label>Turma<select id="csvClass"></select></label>
+      <input id="csvFile" type="file" accept=".csv,.txt">
+      <button id="importStudents" class="secondary">Importar</button>
+    </div>
+    <div class="card">
+      <h2>Alunos</h2>
+      <label>Filtrar turma<select id="studentFilter"></select></label>
+      <div id="studentList"></div>
+    </div>
+  </div>
+</section>
+
+<section id="tests" class="page">
+  <div class="split">
+    <div class="card">
+      <h2>Nova prova</h2>
+      <form id="testForm">
+        <label>Nome da prova<input id="testName" required placeholder="Ex.: Geografia"></label>
+        <label>Turma<select id="testClass" required></select></label>
+        <label>Número de questões<input id="questionCount" type="number" min="1" max="20" value="5" required></label>
+        <label>Alternativas<select id="optionCount"><option value="4">A-D</option><option value="5">A-E</option></select></label>
+        <label>Arquivo PDF/Word (opcional)<input id="testFile" type="file" accept=".pdf,.doc,.docx"></label>
+        <button class="primary" type="submit">Criar prova</button>
+      </form>
+    </div>
+    <div class="card"><h2>Provas</h2><div id="testList"></div></div>
+  </div>
+  <div id="keyCard" class="card" style="display:none">
+    <h2>Gabarito</h2>
+    <div id="keyTitle"></div>
+    <form id="keyForm"><div id="keyGrid" class="answer-grid"></div><button class="success" type="submit">Salvar gabarito</button></form>
+  </div>
+</section>
+
+<section id="cards" class="page">
+  <div class="card">
+    <h2>Gerar cartões individuais</h2>
+    <div class="row">
+      <label style="min-width:240px">Prova<select id="cardTest"></select></label>
+      <label style="min-width:220px">Tamanho de impressão<select id="cardSize"><option value="compact" selected>Reduzido (recomendado)</option><option value="normal">Normal (A4 cheio)</option><option value="micro">Menor</option></select></label>
+      <button id="generateCards" class="primary">Gerar cartões</button>
+      <button id="printCards" class="secondary">Imprimir</button>
+    </div>
+    <div class="notice">Agora você pode imprimir <b>1 cartão por folha</b> em tamanho reduzido, sem precisar recortar. O motor de leitura continua o mesmo.</div>
+  </div>
+  <div id="cardPreview"></div>
+</section>
+
+<section id="correction" class="page">
+  <div class="card">
+    <h2>Correção automática</h2>
+    <div id="cvStatus" class="notice">Carregando o motor de leitura...</div>
+    <p>Abra a câmera e enquadre o cartão inteiro. O QR identifica aluno e prova; as bolhas são lidas automaticamente. Depois use <b>Salvar e próximo aluno</b> para corrigir a turma em sequência sem fechar a câmera.</p>
+    <div class="row">
+      <button id="openCam" class="primary">Abrir câmera</button>
+      <button id="stopCam" class="secondary" disabled>Parar câmera</button>
+    </div>
+    <video id="video" autoplay playsinline></video>
+    <button id="capture" class="success fab" disabled title="Ler cartão">✓</button>
+    <p><b>Ou escolha uma foto:</b></p>
+    <input id="fileInput" type="file" accept="image/*">
+    <canvas id="canvasIn" class="preview"></canvas>
+    <div id="readStatus"></div>
+  </div>
+
+  <div id="identifiedCard" class="card" style="display:none">
+    <h2>Identificação</h2>
+    <div id="identifiedInfo"></div>
+    <div class="result-grid" id="detectedAnswers"></div>
+    <div id="correctionSummary"></div>
+    <div id="correctionActions" class="row" style="display:none;margin-top:12px">
+      <button id="saveNextCorrection" class="success">Salvar e próximo aluno</button>
+      <button id="saveCorrection" class="secondary">Apenas salvar</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Diagnóstico visual</h2>
+    <canvas id="canvasWarp" class="preview"></canvas>
+  </div>
+</section>
+
+<section id="resultsPage" class="page">
+  <div class="card">
+    <div class="row">
+      <h2 style="flex:1">Resultados</h2>
+      <button id="exportCsv" class="secondary">Exportar CSV</button>
+    </div>
+    <label>Filtrar por prova<select id="resultFilter"></select></label>
+    <div style="overflow:auto"><table><thead><tr><th>Aluno</th><th>Turma</th><th>Prova</th><th>Acertos</th><th>Nota</th><th>Data</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+  </div>
+</section>
+</main>
+
+<div id="printArea"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const DBKEY="corretor_provas_completo_v1";
+let state=loadState(), editingTest=null, currentRead=null, stream=null, cvReady=false;
+
+function loadState(){
+  try{return JSON.parse(localStorage.getItem(DBKEY))||{classes:[],students:[],tests:[],results:[]}}catch(e){return{classes:[],students:[],tests:[],results:[]}}
+}
+function saveState(){localStorage.setItem(DBKEY,JSON.stringify(state));renderAll()}
+function uid(p){return p+"_"+Date.now()+"_"+Math.random().toString(36).slice(2,8)}
+function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");$(b.dataset.page).classList.add("active");window.scrollTo(0,0);
+});
+
+/* IndexedDB para arquivo da prova */
+const FILEDB="corretor_provas_files";
+function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(FILEDB,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains("files"))r.result.createObjectStore("files",{keyPath:"testId"})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function saveTestFile(testId,file){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction("files","readwrite");tx.objectStore("files").put({testId,name:file.name,type:file.type,blob:file});tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
+async function openTestFile(testId){const db=await openDB();const rec=await new Promise((res,rej)=>{const r=db.transaction("files","readonly").objectStore("files").get(testId);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});if(!rec)return alert("Arquivo não encontrado neste aparelho.");const u=URL.createObjectURL(rec.blob);window.open(u,"_blank");setTimeout(()=>URL.revokeObjectURL(u),60000)}
+window.openTestFile=openTestFile;
+
+/* CRUD */
+$("classForm").onsubmit=e=>{e.preventDefault();state.classes.push({id:uid("turma"),name:$("className").value.trim(),year:+$("classYear").value});e.target.reset();$("classYear").value=2026;saveState()}
+$("studentForm").onsubmit=e=>{e.preventDefault();if(!$("studentClass").value)return alert("Selecione uma turma.");state.students.push({id:uid("aluno"),classId:$("studentClass").value,name:$("studentName").value.trim(),code:Math.random().toString(36).slice(2,8).toUpperCase()});$("studentName").value="";saveState()}
+$("studentFilter").onchange=renderStudents;
+$("importStudents").onclick=async()=>{const f=$("csvFile").files[0],classId=$("csvClass").value;if(!f||!classId)return alert("Selecione turma e arquivo.");let rows=(await f.text()).split(/\r?\n/).map(x=>x.trim()).filter(Boolean);if(rows[0]&&/^nome$/i.test(rows[0]))rows=rows.slice(1);rows.forEach(name=>state.students.push({id:uid("aluno"),classId,name,code:Math.random().toString(36).slice(2,8).toUpperCase()}));$("csvFile").value="";saveState();alert(rows.length+" aluno(s) importado(s).")}
+
+$("testForm").onsubmit=async e=>{
+  e.preventDefault();
+  if(!$("testClass").value)return alert("Selecione a turma.");
+  const q=+$("questionCount").value,o=+$("optionCount").value,f=$("testFile").files[0];
+  const t={id:uid("prova"),name:$("testName").value.trim(),classId:$("testClass").value,questionCount:q,optionCount:o,answerKey:Array(q).fill(""),fileName:f?f.name:""};
+  if(f)await saveTestFile(t.id,f);
+  state.tests.push(t);editingTest=t.id;saveState();openKey(t.id);
+}
+$("keyForm").onsubmit=e=>{e.preventDefault();const t=state.tests.find(x=>x.id===editingTest);const arr=[];for(let i=0;i<t.questionCount;i++){const r=document.querySelector(`input[name="key${i}"]:checked`);arr.push(r?r.value:"")}if(arr.some(x=>!x))return alert("Preencha todo o gabarito.");t.answerKey=arr;saveState();alert("Gabarito salvo.")}
+
+function openKey(id){
+  editingTest=id;const t=state.tests.find(x=>x.id===id);if(!t)return;
+  $("keyCard").style.display="block";$("keyTitle").innerHTML=`<p><b>${esc(t.name)}</b> — ${t.questionCount} questões</p>`;
+  const letters=["A","B","C","D","E"].slice(0,t.optionCount);
+  $("keyGrid").innerHTML=Array.from({length:t.questionCount},(_,i)=>`<div class="qbox"><b>Questão ${i+1}</b><div class="opts">${letters.map(l=>`<label><input type="radio" name="key${i}" value="${l}" ${t.answerKey[i]===l?"checked":""}> ${l}</label>`).join("")}</div></div>`).join("");
+  document.querySelector('[data-page="tests"]').click();setTimeout(()=>$("keyCard").scrollIntoView({behavior:"smooth"}),50)
+}
+window.openKey=openKey;
+function delClass(id){if(!confirm("Excluir turma, alunos e provas vinculados?"))return;state.classes=state.classes.filter(x=>x.id!==id);state.students=state.students.filter(x=>x.classId!==id);state.tests=state.tests.filter(x=>x.classId!==id);saveState()}
+function delStudent(id){state.students=state.students.filter(x=>x.id!==id);saveState()}
+function delTest(id){state.tests=state.tests.filter(x=>x.id!==id);saveState()}
+window.delClass=delClass;window.delStudent=delStudent;window.delTest=delTest;
+
+/* Render */
+function fillSelect(id,arr,label){const s=$(id),v=s.value;s.innerHTML=`<option value="">${label}</option>`+arr.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");if([...s.options].some(o=>o.value===v))s.value=v}
+function renderClasses(){$("classList").innerHTML=state.classes.length?state.classes.map(c=>`<div class="item"><div><b>${esc(c.name)}</b><small>${c.year}</small></div><button class="danger" onclick="delClass('${c.id}')">Excluir</button></div>`).join(""):'<p class="muted">Nenhuma turma.</p>'}
+function renderStudents(){const f=$("studentFilter").value,arr=(f?state.students.filter(x=>x.classId===f):state.students).slice().sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));$("studentList").innerHTML=arr.length?arr.map(s=>{const c=state.classes.find(x=>x.id===s.classId);return`<div class="item"><div><b>${esc(s.name)}</b><small>${esc(c?.name||"")} • ${esc(s.code)}</small></div><button class="danger" onclick="delStudent('${s.id}')">Excluir</button></div>`}).join(""):'<p class="muted">Nenhum aluno.</p>'}
+function renderTests(){$("testList").innerHTML=state.tests.length?state.tests.map(t=>{const c=state.classes.find(x=>x.id===t.classId),ok=t.answerKey.every(Boolean);return`<div class="item"><div><b>${esc(t.name)}</b><small>${esc(c?.name||"")} • ${t.questionCount} questões • <span class="badge ${ok?"okb":"warnb"}">${ok?"Gabarito pronto":"Gabarito pendente"}</span>${t.fileName?` • 📎 ${esc(t.fileName)}`:""}</small></div><div class="actions">${t.fileName?`<button class="secondary" onclick="openTestFile('${t.id}')">Arquivo</button>`:""}<button class="primary" onclick="openKey('${t.id}')">Gabarito</button><button class="danger" onclick="delTest('${t.id}')">Excluir</button></div></div>`}).join(""):'<p class="muted">Nenhuma prova.</p>'}
+function renderResults(){
+  const f=$("resultFilter").value,arr=(f?state.results.filter(x=>x.testId===f):state.results).slice().reverse();
+  $("resultsBody").innerHTML=arr.length?arr.map(r=>{const s=state.students.find(x=>x.id===r.studentId),t=state.tests.find(x=>x.id===r.testId),c=state.classes.find(x=>x.id===s?.classId);return`<tr><td>${esc(s?.name||"")}</td><td>${esc(c?.name||"")}</td><td>${esc(t?.name||"")}</td><td>${r.hits}/${r.total}</td><td>${Number(r.score).toFixed(1)}</td><td>${new Date(r.date).toLocaleString("pt-BR")}</td></tr>`}).join(""):'<tr><td colspan="6" class="muted">Nenhum resultado.</td></tr>';
+}
+$("resultFilter").onchange=renderResults;
+function renderAll(){
+  $("stClasses").textContent=state.classes.length;$("stStudents").textContent=state.students.length;$("stTests").textContent=state.tests.length;$("stResults").textContent=state.results.length;
+  renderClasses();
+  fillSelect("studentClass",state.classes,"Selecione");fillSelect("csvClass",state.classes,"Selecione");fillSelect("studentFilter",state.classes,"Todas");
+  fillSelect("testClass",state.classes,"Selecione");fillSelect("cardTest",state.tests,"Selecione");fillSelect("resultFilter",state.tests,"Todas as provas");
+  renderStudents();renderTests();renderResults();
+}
+renderAll();
+
+/* ===== MOTOR OMR VALIDADO ===== */
+const CARD_W=1000,CARD_H=1400;
+const MARKERS=[{x:55,y:55,w:80,h:80},{x:865,y:55,w:80,h:80},{x:55,y:1265,w:80,h:80},{x:865,y:1265,w:80,h:80}];
+const MARKER_CENTERS=[[95,95],[905,95],[95,1305],[905,1305]];
+function geometryFor(qCount,optCount){
+  // mesma área e distribuição do teste validado; generalizada até 20 questões
+  const xs=optCount===4?[335,500,665,830]:[280,420,560,700,840];
+  const top=500,bottom=1210,rowH=(bottom-top)/qCount;
+  const ys=Array.from({length:qCount},(_,i)=>top+rowH*(i+.5));
+  return{xs,ys};
+}
+function cardSVG(test,student,cls,sizeMode="compact"){
+  const letters=["A","B","C","D","E"].slice(0,test.optionCount),g=geometryFor(test.questionCount,test.optionCount);
+  const rows=g.ys.map((y,qi)=>{
+    const opts=g.xs.map((x,j)=>`<text x="${x}" y="${y-47}" text-anchor="middle" font-size="30" font-weight="700" font-family="Arial">${letters[j]}</text><circle cx="${x}" cy="${y}" r="32" fill="white" stroke="black" stroke-width="5"/>`).join("");
+    return`<text x="185" y="${y+10}" text-anchor="middle" font-size="34" font-weight="700" font-family="Arial">${String(qi+1).padStart(2,"0")}</text>${opts}`;
+  }).join("");
+  const payload=JSON.stringify({v:1,testId:test.id,studentId:student.id});
+  const qrId="qrsvg_"+student.id+"_"+test.id;
+  return `<div class="print-page ${sizeMode}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CARD_W} ${CARD_H}">
+    <rect x="25" y="25" width="950" height="1350" fill="white" stroke="black" stroke-width="4"/>
+    ${MARKERS.map(m=>`<rect x="${m.x}" y="${m.y}" width="${m.w}" height="${m.h}" fill="black"/>`).join("")}
+    <text x="160" y="180" font-size="42" font-weight="700" font-family="Arial">${esc(test.name)}</text>
+    <text x="160" y="232" font-size="24" font-family="Arial"><tspan font-weight="700">Aluno:</tspan> ${esc(student.name)}</text>
+    <text x="160" y="270" font-size="23" font-family="Arial"><tspan font-weight="700">Turma:</tspan> ${esc(cls?.name||"")}</text>
+    <foreignObject x="715" y="145" width="190" height="190"><div xmlns="http://www.w3.org/1999/xhtml" id="${qrId}" data-qr='${esc(payload)}' style="width:180px;height:180px;background:white"></div></foreignObject>
+    <text x="160" y="320" font-size="20" font-family="Arial">Preencha totalmente UMA bolha por questão.</text>
+    <line x1="150" y1="390" x2="850" y2="390" stroke="black" stroke-width="4"/>
+    ${rows}
+  </svg></div>`;
+}
+$("generateCards").onclick=()=>{
+  const t=state.tests.find(x=>x.id===$("cardTest").value);if(!t)return alert("Selecione uma prova.");if(!t.answerKey.every(Boolean))return alert("Complete o gabarito.");
+  const cls=state.classes.find(x=>x.id===t.classId),students=state.students.filter(x=>x.classId===t.classId).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));if(!students.length)return alert("Não há alunos.");
+  const sizeMode=$("cardSize")?.value||"compact";
+  const html=students.map(s=>cardSVG(t,s,cls,sizeMode)).join("");
+  $("printArea").innerHTML=html;$("cardPreview").innerHTML=html;
+  document.querySelectorAll("[data-qr]").forEach(el=>{el.innerHTML="";new QRCode(el,{text:el.dataset.qr,width:180,height:180,correctLevel:QRCode.CorrectLevel.M})});
+}
+$("printCards").onclick=()=>window.print();
+
+/* OpenCV */
+function waitCv(){if(window.cv&&cv.Mat){cvReady=true;$("cvHome").className="ok";$("cvHome").innerHTML="<b>Motor de leitura pronto.</b>";$("cvStatus").className="ok";$("cvStatus").innerHTML="<b>Motor de leitura pronto.</b>"}else setTimeout(waitCv,250)}waitCv();
+
+$("openCam").onclick=async()=>{try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false});$("video").srcObject=stream;$("video").style.display="block";$("openCam").disabled=true;$("stopCam").disabled=false;$("capture").disabled=false;$("capture").classList.add("show");await $("video").play()}catch(e){alert("Não foi possível abrir a câmera.")}}
+$("stopCam").onclick=()=>{if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$("video").srcObject=null;$("video").style.display="none";$("openCam").disabled=false;$("stopCam").disabled=true;$("capture").disabled=true;$("capture").classList.remove("show")}
+$("capture").onclick=()=>{const v=$("video");if(v.readyState<2)return;const c=$("canvasIn");c.width=v.videoWidth;c.height=v.videoHeight;c.getContext("2d").drawImage(v,0,0);c.style.display="block";processCanvas(c)}
+$("fileInput").onchange=e=>{const f=e.target.files[0];if(!f)return;const img=new Image();img.onload=()=>{const c=$("canvasIn"),max=1800,scale=Math.min(1,max/img.naturalWidth);c.width=Math.round(img.naturalWidth*scale);c.height=Math.round(img.naturalHeight*scale);c.getContext("2d").drawImage(img,0,0,c.width,c.height);c.style.display="block";processCanvas(c);URL.revokeObjectURL(img.src)};img.src=URL.createObjectURL(f)}
+
+function findMarkers(gray){
+  const thr=new cv.Mat();cv.threshold(gray,thr,0,255,cv.THRESH_BINARY_INV+cv.THRESH_OTSU);
+  const contours=new cv.MatVector(),hier=new cv.Mat();cv.findContours(thr,contours,hier,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE);
+  const minDim=Math.min(gray.cols,gray.rows),cand=[];
+  for(let i=0;i<contours.size();i++){const cnt=contours.get(i),area=cv.contourArea(cnt),r=cv.boundingRect(cnt),ar=r.width/r.height,fill=area/(r.width*r.height),size=Math.max(r.width,r.height);if(ar>.76&&ar<1.24&&fill>.72&&size>minDim*.035&&size<minDim*.16)cand.push({x:r.x+r.width/2,y:r.y+r.height/2,area});cnt.delete()}
+  contours.delete();hier.delete();thr.delete();if(cand.length<4)return null;
+  const tops=cand.sort((a,b)=>b.area-a.area).slice(0,14),W=gray.cols,H=gray.rows,tests=[p=>p.x<W*.5&&p.y<H*.5,p=>p.x>=W*.5&&p.y<H*.5,p=>p.x>=W*.5&&p.y>=H*.5,p=>p.x<W*.5&&p.y>=H*.5],chosen=[];
+  for(const fn of tests){const a=tops.filter(fn);if(!a.length)return null;chosen.push(a.sort((x,y)=>y.area-x.area)[0])}
+  return chosen;
+}
+function warpFromMarkers(src,m){const sp=cv.matFromArray(4,1,cv.CV_32FC2,[m[0].x,m[0].y,m[1].x,m[1].y,m[2].x,m[2].y,m[3].x,m[3].y]);const dp=cv.matFromArray(4,1,cv.CV_32FC2,[95,95,905,95,905,1305,95,1305]);const M=cv.getPerspectiveTransform(sp,dp),dst=new cv.Mat();cv.warpPerspective(src,dst,M,new cv.Size(CARD_W,CARD_H),cv.INTER_LINEAR,cv.BORDER_CONSTANT,new cv.Scalar(255,255,255,255));sp.delete();dp.delete();M.delete();return dst}
+function bubbleScore(rgba,cx,cy){const d=rgba.data,w=rgba.cols,h=rgba.rows;let n=0,dark=0,blue=0,sumY=0,rn=0,ringY=0;const rIn=20,r1=38,r2=50;for(let y=Math.max(0,cy-r2);y<=Math.min(h-1,cy+r2);y++)for(let x=Math.max(0,cx-r2);x<=Math.min(w-1,cx+r2);x++){const dx=x-cx,dy=y-cy,d2=dx*dx+dy*dy,idx=(y*w+x)*4,R=d[idx],G=d[idx+1],B=d[idx+2],Y=.299*R+.587*G+.114*B;if(d2<=rIn*rIn){n++;sumY+=Y;if(Y<175)dark++;const mx=Math.max(R,G,B),mn=Math.min(R,G,B),sat=mx?(mx-mn)/mx:0;if(B>R*1.10&&B>G*.90&&sat>.22&&R<200)blue++}else if(d2>=r1*r1&&d2<=r2*r2){rn++;ringY+=Y}}const avg=n?sumY/n:255,sur=rn?ringY/rn:255,dr=n?dark/n:0,br=n?blue/n:0,contrast=Math.max(0,sur-avg)/100;return{score:.75*dr+1.45*br+.85*contrast}}
+function detectAnswers(warp,test){const g=geometryFor(test.questionCount,test.optionCount),letters=["A","B","C","D","E"].slice(0,test.optionCount),answers=[],detail=[];for(let q=0;q<test.questionCount;q++){const vals=g.xs.map(x=>bubbleScore(warp,x,g.ys[q]).score),rank=vals.map((v,i)=>({i,v})).sort((a,b)=>b.v-a.v),best=rank[0],second=rank[1],gap=best.v-second.v;let ans="";if(best.v>.38&&gap>.11)ans=letters[best.i];else if(best.v>.28&&gap>.075)ans=letters[best.i];answers.push(ans);detail.push({q:q+1,scores:vals.map(v=>+v.toFixed(3)),gap:+gap.toFixed(3)})}return{answers,detail}}
+function drawDiagnostics(warp,test,answers){const g=geometryFor(test.questionCount,test.optionCount),letters=["A","B","C","D","E"].slice(0,test.optionCount),diag=warp.clone();for(let q=0;q<test.questionCount;q++)for(let j=0;j<test.optionCount;j++){const chosen=answers[q]===letters[j],color=chosen?new cv.Scalar(0,190,0,255):new cv.Scalar(220,80,0,255);cv.circle(diag,new cv.Point(g.xs[j],g.ys[q]),38,color,chosen?6:2)}cv.imshow("canvasWarp",diag);$("canvasWarp").style.display="block";diag.delete()}
+
+async function decodeQR(canvas){
+  if(!("BarcodeDetector" in window))return null;
+  try{const d=new BarcodeDetector({formats:["qr_code"]}),codes=await d.detect(canvas);if(!codes.length)return null;return JSON.parse(codes[0].rawValue)}catch(e){return null}
+}
+async function processCanvas(canvas){
+  if(!cvReady){alert("Motor ainda carregando.");return}
+  $("readStatus").innerHTML='<div class="notice">Identificando aluno e lendo respostas...</div>';
+  const qr=await decodeQR(canvas);
+  if(!qr?.testId||!qr?.studentId){$("readStatus").innerHTML='<div class="warn"><b>Não consegui ler o QR.</b> Aproxime um pouco ou use uma foto mais nítida.</div>';return}
+  const test=state.tests.find(x=>x.id===qr.testId),student=state.students.find(x=>x.id===qr.studentId);
+  if(!test||!student){$("readStatus").innerHTML='<div class="warn">QR válido, mas aluno/prova não existem neste navegador.</div>';return}
+  let src=null,gray=null,warp=null;
+  try{
+    src=cv.imread(canvas);gray=new cv.Mat();cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);const markers=findMarkers(gray);if(!markers){$("readStatus").innerHTML='<div class="warn">Não encontrei os 4 marcadores pretos.</div>';return}
+    warp=warpFromMarkers(src,markers);const out=detectAnswers(warp,test);drawDiagnostics(warp,test,out.answers);
+    const hits=out.answers.reduce((n,a,i)=>n+(a===test.answerKey[i]?1:0),0),score=hits/test.questionCount*10;
+    currentRead={test,student,answers:out.answers,hits,score,detail:out.detail};
+    const cls=state.classes.find(x=>x.id===student.classId);
+    $("identifiedCard").style.display="block";$("identifiedInfo").innerHTML=`<p><b>Aluno:</b> ${esc(student.name)}<br><b>Turma:</b> ${esc(cls?.name||"")}<br><b>Prova:</b> ${esc(test.name)}</p>`;
+    $("detectedAnswers").innerHTML=out.answers.map((a,i)=>`<div class="res">Q${i+1}<strong>${a||"?"}</strong></div>`).join("");
+    $("correctionSummary").innerHTML=`<div class="${out.answers.every(Boolean)?"ok":"warn"}"><b>Detectadas:</b> ${out.answers.filter(Boolean).length}/${test.questionCount}<br><b>Acertos:</b> ${hits}/${test.questionCount}<br><b>Nota:</b> ${score.toFixed(1)}</div>`;
+    $("correctionActions").style.display=out.answers.every(Boolean)?"flex":"none";
+    $("readStatus").innerHTML='<div class="ok"><b>Leitura concluída.</b></div>';
+    $("identifiedCard").scrollIntoView({behavior:"smooth"});
+  }finally{if(src)src.delete();if(gray)gray.delete();if(warp)warp.delete()}
+}
+function persistCurrentResult(){
+  if(!currentRead)return false;
+  state.results=state.results.filter(r=>!(r.testId===currentRead.test.id&&r.studentId===currentRead.student.id));
+  state.results.push({
+    id:uid("res"),testId:currentRead.test.id,studentId:currentRead.student.id,
+    answers:currentRead.answers,hits:currentRead.hits,total:currentRead.test.questionCount,
+    score:+currentRead.score.toFixed(2),date:new Date().toISOString()
+  });
+  saveState();
+  return true;
+}
+
+function resetForNextStudent(){
+  currentRead=null;
+  $("identifiedCard").style.display="none";
+  $("identifiedInfo").innerHTML="";
+  $("detectedAnswers").innerHTML="";
+  $("correctionSummary").innerHTML="";
+  $("correctionActions").style.display="none";
+  $("readStatus").innerHTML='<div class="notice"><b>Pronto para o próximo aluno.</b> Enquadre o próximo cartão e toque no ✓ verde.</div>';
+  const cin=$("canvasIn");
+  const cwarp=$("canvasWarp");
+  cin.style.display="none";
+  cwarp.style.display="none";
+  const ctx1=cin.getContext("2d"); if(cin.width&&cin.height)ctx1.clearRect(0,0,cin.width,cin.height);
+  const ctx2=cwarp.getContext("2d"); if(cwarp.width&&cwarp.height)ctx2.clearRect(0,0,cwarp.width,cwarp.height);
+  $("fileInput").value="";
+  if(stream){
+    $("video").style.display="block";
+    $("capture").disabled=false;
+    $("capture").classList.add("show");
+    $("video").scrollIntoView({behavior:"smooth",block:"center"});
+  }else{
+    $("openCam").scrollIntoView({behavior:"smooth",block:"center"});
+  }
+}
+
+$("saveCorrection").onclick=()=>{
+  if(!persistCurrentResult())return;
+  $("correctionActions").style.display="none";
+  $("correctionSummary").innerHTML+='<div class="ok"><b>Resultado salvo.</b></div>';
+};
+
+$("saveNextCorrection").onclick=()=>{
+  if(!persistCurrentResult())return;
+  resetForNextStudent();
+};
+
+$("exportCsv").onclick=()=>{if(!state.results.length)return alert("Sem resultados.");let csv="Aluno,Turma,Prova,Acertos,Total,Nota,Data\n";state.results.forEach(r=>{const s=state.students.find(x=>x.id===r.studentId),t=state.tests.find(x=>x.id===r.testId),c=state.classes.find(x=>x.id===s?.classId);csv+=`"${(s?.name||"").replaceAll('"','""')}","${(c?.name||"").replaceAll('"','""')}","${(t?.name||"").replaceAll('"','""')}",${r.hits},${r.total},${r.score},"${new Date(r.date).toLocaleString("pt-BR")}"\n`});const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download="resultados_provas.csv";a.click();URL.revokeObjectURL(u)}
+</script>
+</body>
+</html>
